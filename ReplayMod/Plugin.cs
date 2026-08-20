@@ -1,10 +1,69 @@
+using System.IO;
+using System.Linq;
 using BepInEx;
+using ReplayMod.Core;
+using ReplayMod.IO;
+using ReplayMod.Playback;
+using UnityEngine;
 
 namespace ReplayMod;
 
 [BepInPlugin(PluginInfo.Guid, PluginInfo.Name, PluginInfo.Version)]
 public class Plugin : BaseUnityPlugin
 {
+    private ReplaySystem _replaySystem;
+    private ReplayPlayer _replayPlayer;
+
+    public void Awake()
+    {
+        _replaySystem = new ReplaySystem();
+        _replayPlayer = gameObject.AddComponent<ReplayPlayer>();
+    }
+
+    public void OnGUI()
+    {
+        GUI.enabled = !_replaySystem.IsRecording;
+        if (GUI.Button(new Rect(10, 10, 120, 20), "Start Recording"))
+            _replaySystem.StartRecording();
+
+        GUI.enabled = _replaySystem.IsRecording;
+        if (GUI.Button(new Rect(10, 40, 120, 20), "Stop Recording"))
+            _replaySystem.StopRecording();
+
+        GUI.enabled = true;
+        if (GUI.Button(new Rect(10, 70, 120, 20), "Play Latest"))
+            PlayLatestReplay();
+
+        if (GUI.Button(new Rect(10, 100, 120, 20), "Stop Playback"))
+            _replayPlayer.Stop();
+    }
+
+    private void PlayLatestReplay()
+    {
+        if (!Directory.Exists(ReplayWriter.ReplayFolder))
+            return;
+
+        var latest = Directory.GetFiles(ReplayWriter.ReplayFolder, "*.replay")
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .FirstOrDefault();
+
+        if (latest == null)
+            return;
+        
+        _replayPlayer.Load(latest, SpawnGhostRig);
+    }
+
+    private VRRig SpawnGhostRig(int actorNumber)
+    {
+        var source = GorillaTagger.Instance.offlineVRRig.gameObject;
+        var instance = Instantiate(source);
+        instance.name = $"GhostRig_{actorNumber}";
+
+        var rig = instance.GetComponent<VRRig>();
+        rig.isOfflineVRRig = false;
+
+        return rig;
+    }
 }
 
 public static class PluginInfo

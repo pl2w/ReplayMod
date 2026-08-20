@@ -81,7 +81,7 @@
             <HintPath>$(GorillaTagDir)/BepInEx/core/MonoMod.Utils.dll</HintPath>
             <Private>false</Private>
         </Reference>
-        <Reference Include="Assembly-CSharp">
+        <Reference Include="Assembly-CSharp" Publicize="True">
             <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/Assembly-CSharp.dll</HintPath>
             <Private>false</Private>
         </Reference>
@@ -121,8 +121,12 @@
             <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.CoreModule.dll</HintPath>
             <Private>false</Private>
         </Reference>
-        <Reference Include="UnityEngine" Publicize="True">
+        <Reference Include="UnityEngine">
             <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="UnityEngine.IMGUIModule">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.IMGUIModule.dll</HintPath>
             <Private>false</Private>
         </Reference>
     </ItemGroup>
