@@ -121,7 +121,7 @@
             <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.CoreModule.dll</HintPath>
             <Private>false</Private>
         </Reference>
-        <Reference Include="UnityEngine">
+        <Reference Include="UnityEngine" Publicize="True">
             <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.dll</HintPath>
             <Private>false</Private>
         </Reference>
