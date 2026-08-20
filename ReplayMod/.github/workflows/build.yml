@@ -1,0 +1,78 @@
+name: Auto Build
+on:
+  schedule:
+    - cron: "0 19 * * 5"
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish this build as a GitHub Release"
+        type: boolean
+        default: false
+      version:
+        description: "Release version"
+        type: string
+        default: ""
+      prerelease:
+        description: "Mark as a pre-release"
+        type: boolean
+        default: false
+  push:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  auto-build:
+    name: Auto Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+      - name: Cache NuGet Packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - name: Add Custom NuGet Source
+        run: dotnet nuget add source https://git.crafterbot.com/api/packages/GorillaTagModding/nuget/index.json
+      - name: Restore Dependencies
+        run: dotnet restore
+      - name: Build Project
+        run: dotnet build -c Release --no-restore
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ReplayMod
+          path: |
+            ReplayMod/bin/Release/netstandard2.1/ReplayMod.dll
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Validate version input
+        if: github.event_name == 'workflow_dispatch' && inputs.release == true
+        run: |
+          if [ -z "${{ inputs.version }}" ]; then
+            echo "::error::You checked 'release' but left 'version' empty."
+            exit 1
+          fi
+
+      - name: Create Release
+        if: github.event_name == 'workflow_dispatch' && inputs.release == true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          name: ${{ inputs.version }}
+          prerelease: ${{ inputs.prerelease }}
+          files: ReplayMod/bin/Release/netstandard2.1/ReplayMod.dll
+          generate_release_notes: true

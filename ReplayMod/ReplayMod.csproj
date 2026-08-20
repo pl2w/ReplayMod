@@ -1,0 +1,136 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>ReplayMod</RootNamespace>
+        <RestoreAdditionalProjectSources>
+            https://api.nuget.org/v3/index.json;
+            https://nuget.bepinex.dev/v3/index.json
+        </RestoreAdditionalProjectSources>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(CI)'=='TRUE'">
+        <PackageReference Publicize="true" Include="gorillatag" Version="1.0.*"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(CI)'!='TRUE'">
+        <Reference Include="0Harmony">
+            <HintPath>$(GorillaTagDir)/BepInEx/core/0Harmony.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="BepInEx">
+            <HintPath>$(GorillaTagDir)/BepInEx/core/BepInEx.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="BepInEx.Harmony">
+            <HintPath>$(GorillaTagDir)/BepInEx/core/BepInEx.Harmony.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="BepInEx.Preloader">
+            <HintPath>$(GorillaTagDir)/BepInEx/core/BepInEx.Preloader.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Fusion.Common">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/Fusion.Common.dll</HintPath>
+        </Reference>
+        <Reference Include="Fusion.Log">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/Fusion.Log.dll</HintPath>
+        </Reference>
+        <Reference Include="Fusion.Realtime">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/Fusion.Realtime.dll</HintPath>
+        </Reference>
+        <Reference Include="Fusion.Runtime">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/Fusion.Runtime.dll</HintPath>
+        </Reference>
+        <Reference Include="Fusion.Sockets">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/Fusion.Sockets.dll</HintPath>
+        </Reference>
+        <Reference Include="Fusion.Unity">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/Fusion.Unity.dll</HintPath>
+        </Reference>
+        <Reference Include="HarmonyXInterop">
+            <HintPath>$(GorillaTagDir)/BepInEx/core/HarmonyXInterop.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Mono.Cecil">
+            <HintPath>$(GorillaTagDir)/BepInEx/core/Mono.Cecil.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Mono.Cecil.Mdb">
+            <HintPath>$(GorillaTagDir)/BepInEx/core/Mono.Cecil.Mdb.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Mono.Cecil.Pdb">
+            <HintPath>$(GorillaTagDir)/BepInEx/core/Mono.Cecil.Pdb.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Mono.Cecil.Rocks">
+            <HintPath>$(GorillaTagDir)/BepInEx/core/Mono.Cecil.Rocks.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="MonoMod.RuntimeDetour">
+            <HintPath>$(GorillaTagDir)/BepInEx/core/MonoMod.RuntimeDetour.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="MonoMod.Utils">
+            <HintPath>$(GorillaTagDir)/BepInEx/core/MonoMod.Utils.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Assembly-CSharp">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/Assembly-CSharp.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Photon3Unity3D">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/Photon3Unity3D.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="PhotonRealtime">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/PhotonRealtime.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="PhotonUnityNetworking">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/PhotonUnityNetworking.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="PhotonUnityNetworking.Utilities">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/PhotonUnityNetworking.Utilities.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="PhotonVoice">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/PhotonVoice.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="PhotonVoice.API">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/PhotonVoice.API.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="PhotonVoice.Fusion">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/PhotonVoice.Fusion.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="PhotonVoice.PUN">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/PhotonVoice.PUN.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="UnityEngine.CoreModule">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.CoreModule.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="UnityEngine">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <Import Project="Directory.Build.local.props" Condition="Exists('Directory.Build.local.props')"/>
+
+    <Target Name="PostBuild_CopyToBepInEx" AfterTargets="Build" Condition="Exists('$(GorillaTagDir)')">
+        <MakeDir Directories="$(GorillaTagDir)/BepInEx/plugins/$(SolutionName)"/>
+        <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GorillaTagDir)/BepInEx/plugins/$(SolutionName)" SkipUnchangedFiles="true"/>
+    </Target>
+</Project>
