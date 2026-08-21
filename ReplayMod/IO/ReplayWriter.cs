@@ -15,7 +15,7 @@ public static class ReplayWriter
     public static readonly string ReplayFolder =
         Path.Combine(Paths.PluginPath, "ReplayMod", "Recordings");
 
-    public static string Save(string fileName, Dictionary<int, List<PackedReplayFrame>> buffers)
+    public static string Save(string fileName, Dictionary<int, List<ReplayEvent>> streams)
     {
         Directory.CreateDirectory(ReplayFolder);
 
@@ -29,25 +29,44 @@ public static class ReplayWriter
         writer.Write(FormatVersion);
         writer.Write(DateTime.UtcNow.ToBinary());
 
-        writer.Write(buffers.Count);
+        writer.Write(streams.Count);
 
-        foreach (var (actorNumber, frames) in buffers)
+        foreach (var (actorNumber, events) in streams)
         {
             writer.Write(actorNumber);
-            writer.Write(frames.Count);
+            writer.Write(events.Count);
 
-            foreach (var f in frames)
-            {
-                writer.Write(f.DeltaTime);
-                writer.Write(f.BodyPos);
-                writer.Write(f.BodyRot);
-                writer.Write(f.HeadRot);
-                writer.Write(f.LeftHandLong);
-                writer.Write(f.RightHandLong);
-                writer.Write(f.HandSync);
-            }
+            foreach (var e in events)
+                WriteEvent(writer, e);
         }
 
         return path;
+    }
+
+    private static void WriteEvent(BinaryWriter writer, ReplayEvent e)
+    {
+        writer.Write((byte)e.Type);
+        writer.Write(e.DeltaTime);
+
+        switch (e.Type)
+        {
+            case ReplayEventType.Frame:
+                writer.Write(e.BodyPos);
+                writer.Write(e.BodyRot);
+                writer.Write(e.HeadRot);
+                writer.Write(e.LeftHandLong);
+                writer.Write(e.RightHandLong);
+                writer.Write(e.HandSync);
+                break;
+            case ReplayEventType.ColorChanged:
+                writer.Write(e.Color);
+                break;
+            case ReplayEventType.MaterialChanged:
+                writer.Write(e.MaterialIndex);
+                break;
+            case ReplayEventType.NameChanged:
+                writer.Write(e.Name ?? string.Empty);
+                break;
+        }
     }
 }

@@ -1,10 +1,8 @@
-using System.Runtime.InteropServices;
-
 namespace ReplayMod.Models;
 
-[StructLayout(LayoutKind.Sequential, Pack = 1)]
-public struct PackedReplayFrame
+public struct ReplayEvent
 {
+    public ReplayEventType Type;
     public float DeltaTime;
     public long BodyPos;
     public int BodyRot;
@@ -12,4 +10,7 @@ public struct PackedReplayFrame
     public long LeftHandLong;
     public long RightHandLong;
     public int HandSync;
+    public short Color;
+    public sbyte MaterialIndex;
+    public string Name;
 }

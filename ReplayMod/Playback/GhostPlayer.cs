@@ -6,9 +6,16 @@ namespace ReplayMod.Playback;
 public class GhostPlayer
 {
     public int ActorNumber;
-    public List<PackedReplayFrame> Frames;
-    public double[] CumulativeTimes;
+    public List<ReplayEvent> Events;
+    public double[] AbsoluteTimes;
     public VRRig Rig;
-    public int CurrentFrameIndex;
+
+    public int NextEventIndex;
     public double PlaybackClock;
+
+    public ReplayEvent PreviousFrame;
+    public ReplayEvent CurrentFrame;
+    public double PreviousFrameTime;
+    public double CurrentFrameTime;
+    public int FramesSeen;
 }

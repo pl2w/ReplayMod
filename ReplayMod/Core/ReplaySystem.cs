@@ -19,6 +19,11 @@ public class ReplaySystem : ITickSystemPost
         _nextRecordTime = 0;
         TickSystem<object>.AddPostTickCallback(this);
         IsRecording = true;
+
+        foreach (var player in NetworkSystem.Instance.AllNetPlayers)
+            TryBeginRecordingForPlayer(player);
+
+        RoomSystem.PlayerJoinedEvent += OnPlayerJoined;
     }
 
     public void StopRecording()
@@ -26,6 +31,14 @@ public class ReplaySystem : ITickSystemPost
         if (!IsRecording) return;
 
         TickSystem<object>.RemovePostTickCallback(this);
+        RoomSystem.PlayerJoinedEvent -= OnPlayerJoined;
+
+        foreach (var player in NetworkSystem.Instance.AllNetPlayers)
+        {
+            if (VRRigCache.Instance.TryGetVrrig(player, out var container))
+                ReplayRecorder.StopRecording(player.ActorNumber, container.Rig);
+        }
+
         IsRecording = false;
 
         if (ReplayRecorder.Buffers.Count == 0) return;
@@ -34,12 +47,27 @@ public class ReplaySystem : ITickSystemPost
         ReplayWriter.Save(fileName, ReplayRecorder.Buffers);
     }
 
+    private void OnPlayerJoined(NetPlayer player)
+    {
+        TryBeginRecordingForPlayer(player);
+    }
+
+    private void TryBeginRecordingForPlayer(NetPlayer player)
+    {
+        if (!VRRigCache.Instance.TryGetVrrig(player, out var container))
+            return;
+
+        ReplayRecorder.BeginRecording(player.ActorNumber, container.Rig, NetworkSystem.Instance.SimTime);
+    }
+
     public void PostTick()
     {
         if (NetworkSystem.Instance == null || !NetworkSystem.Instance.InRoom)
             return;
 
         var timestamp = NetworkSystem.Instance.SimTime;
+        ReplayRecorder.CurrentTimestamp = timestamp;
+
         if (timestamp < _nextRecordTime)
             return;
 

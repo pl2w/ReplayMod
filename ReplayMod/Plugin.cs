@@ -55,14 +55,7 @@ public class Plugin : BaseUnityPlugin
 
     private VRRig SpawnGhostRig(int actorNumber)
     {
-        var source = GorillaTagger.Instance.offlineVRRig.gameObject;
-        var instance = Instantiate(source);
-        instance.name = $"GhostRig_{actorNumber}";
-
-        var rig = instance.GetComponent<VRRig>();
-        rig.isOfflineVRRig = false;
-
-        return rig;
+        return GhostRigFactory.Spawn(actorNumber);
     }
 }
 
