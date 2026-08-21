@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Photon.Voice;
 using Photon.Voice.Unity;
+using ReplayMod.Logging;
 using ReplayMod.Models;
 using UnityEngine;
 
@@ -76,7 +77,7 @@ public static class VoiceRecorder
         lock (MappingLock)
         {
             if (!SpeakerActorNumbers.ContainsKey(speaker))
-                Debug.Log($"[ReplayMod] Voice: mapped rig speaker to actor {actorNumber} (speaker={speaker.name})");
+                ModLog.Info($"mapped rig speaker to actor {actorNumber} (speaker={speaker.name})");
 
             SpeakerActorNumbers[speaker] = actorNumber;
         }

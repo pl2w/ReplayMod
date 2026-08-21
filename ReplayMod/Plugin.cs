@@ -4,6 +4,7 @@ using BepInEx;
 using HarmonyLib;
 using ReplayMod.Core;
 using ReplayMod.IO;
+using ReplayMod.Logging;
 using ReplayMod.Patches;
 using ReplayMod.Playback;
 using UnityEngine;
@@ -19,6 +20,8 @@ public class Plugin : BaseUnityPlugin
 
     public void Awake()
     {
+        ModLog.Source = Logger;
+
         _harmony = new Harmony(PluginInfo.Guid);
         _harmony.PatchAll(typeof(VoiceRecorderPatches).Assembly);
 

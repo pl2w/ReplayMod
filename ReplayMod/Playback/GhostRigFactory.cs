@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Photon.Pun;
 using Photon.Voice.PUN;
+using ReplayMod.Logging;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -62,7 +63,7 @@ public static class GhostRigFactory
 
         if (!VRRigCache.Instance || !VRRigCache.Instance.rigTemplate)
         {
-            Debug.LogError("VRRigCache not ready yet.");
+            ModLog.Error("VRRigCache not ready yet.");
             return;
         }
 

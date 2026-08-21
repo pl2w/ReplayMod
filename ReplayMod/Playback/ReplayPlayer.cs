@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using ReplayMod.IO;
+using ReplayMod.Logging;
 using ReplayMod.Models;
 
 namespace ReplayMod.Playback;
@@ -166,7 +167,7 @@ public class ReplayPlayer : MonoBehaviour
         var rig = ghost.Rig;
         
         if (ghost.ActorNumber == 430)
-            Debug.Log($"t={t:F3} clock={ghost.PlaybackClock:F3} curT={ghost.CurrentFrameTime:F3} nextT={nextFrameTime:F3} pos={rig.transform.position}");
+            ModLog.Debug($"t={t:F3} clock={ghost.PlaybackClock:F3} curT={ghost.CurrentFrameTime:F3} nextT={nextFrameTime:F3} pos={rig.transform.position}");
     
         rig.transform.position = Vector3.Lerp(bodyPosA, bodyPosB, t);
         rig.transform.rotation = Quaternion.Lerp(bodyRotA, bodyRotB, t);
