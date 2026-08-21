@@ -101,7 +101,7 @@
             <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/PhotonUnityNetworking.Utilities.dll</HintPath>
             <Private>false</Private>
         </Reference>
-        <Reference Include="PhotonVoice">
+        <Reference Include="PhotonVoice" Publicize="True">
             <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/PhotonVoice.dll</HintPath>
             <Private>false</Private>
         </Reference>

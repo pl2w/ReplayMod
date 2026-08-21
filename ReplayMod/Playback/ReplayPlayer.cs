@@ -59,11 +59,10 @@ public class ReplayPlayer : MonoBehaviour
             Events = events,
             AbsoluteTimes = BuildAbsoluteTimes(events),
             VoiceChunks = voiceChunks,
-            VoiceAbsoluteTimes = BuildAbsoluteTimes(voiceChunks),
+            VoiceClip = BuildVoiceClip(actorNumber, voiceChunks),
             Rig = rig,
             VoiceSource = voiceSource,
             NextEventIndex = 0,
-            NextVoiceChunkIndex = 0,
             PlaybackClock = 0
         };
 
@@ -74,6 +73,8 @@ public class ReplayPlayer : MonoBehaviour
     {
         foreach (var ghost in _ghosts)
         {
+            if (ghost.VoiceClip != null)
+                Destroy(ghost.VoiceClip);
             if (ghost.Rig != null)
                 Destroy(ghost.Rig.gameObject);
         }
@@ -186,38 +187,91 @@ public class ReplayPlayer : MonoBehaviour
 
     private static void AdvanceVoice(GhostPlayer ghost)
     {
-        while (ghost.NextVoiceChunkIndex < ghost.VoiceChunks.Count &&
-               ghost.VoiceAbsoluteTimes[ghost.NextVoiceChunkIndex] <= ghost.PlaybackClock)
-        {
-            var chunk = ghost.VoiceChunks[ghost.NextVoiceChunkIndex];
-            var clip = CreateClip(ghost.ActorNumber, ghost.NextVoiceChunkIndex, chunk);
-            if (clip != null)
-                ghost.VoiceSource.PlayOneShot(clip);
+        if (ghost.VoiceClip == null || ghost.VoiceClipScheduled)
+            return;
 
-            ghost.NextVoiceChunkIndex++;
-        }
+        ghost.VoiceSource.clip = ghost.VoiceClip;
+        ghost.VoiceSource.Play();
+        ghost.VoiceClipScheduled = true;
     }
 
-    private static AudioClip CreateClip(int actorNumber, int chunkIndex, VoiceChunk chunk)
+    private static AudioClip BuildVoiceClip(int actorNumber, List<VoiceChunk> chunks)
     {
-        if (chunk.PcmData == null || chunk.PcmData.Length == 0 || chunk.Channels <= 0 || chunk.SampleRate <= 0)
+        if (chunks == null || chunks.Count == 0)
             return null;
 
-        var sampleCount = chunk.PcmData.Length / sizeof(short);
-        var frameCount = sampleCount / chunk.Channels;
-        if (frameCount <= 0)
-            return null;
-
-        var samples = new float[sampleCount];
-        for (var i = 0; i < sampleCount; i++)
+        var sampleRate = 0;
+        var channels = 0;
+        foreach (var chunk in chunks)
         {
-            var offset = i * sizeof(short);
-            var value = (short)(chunk.PcmData[offset] | (chunk.PcmData[offset + 1] << 8));
-            samples[i] = value / (float)short.MaxValue;
+            if (sampleRate == 0)
+            {
+                sampleRate = chunk.SampleRate;
+                channels = chunk.Channels;
+            }
         }
 
-        var clip = AudioClip.Create($"Voice_{actorNumber}_{chunkIndex}", frameCount, chunk.Channels, chunk.SampleRate, false);
-        clip.SetData(samples, 0);
+        if (sampleRate <= 0 || channels <= 0)
+            return null;
+
+        var elapsed = 0.0;
+        var totalFrames = 0;
+        for (var i = 0; i < chunks.Count; i++)
+        {
+            var chunk = chunks[i];
+            var chunkFrames = chunk.PcmData.Length / sizeof(short) / chunk.Channels;
+            if (chunkFrames <= 0)
+            {
+                elapsed += chunk.DeltaTime;
+                continue;
+            }
+
+            elapsed += chunk.DeltaTime;
+            var chunkEndFrame = Mathf.RoundToInt((float)elapsed * sampleRate) + chunkFrames;
+            if (chunkEndFrame > totalFrames)
+                totalFrames = chunkEndFrame;
+        }
+
+        if (totalFrames <= 0)
+            return null;
+
+        var output = new float[totalFrames * channels];
+        var writeFrame = 0;
+        elapsed = 0.0;
+
+        for (var i = 0; i < chunks.Count; i++)
+        {
+            var chunk = chunks[i];
+            var chunkFrames = chunk.PcmData.Length / sizeof(short) / chunk.Channels;
+            if (chunkFrames <= 0)
+            {
+                elapsed += chunk.DeltaTime;
+                continue;
+            }
+
+            elapsed += chunk.DeltaTime;
+            var chunkStartFrame = Mathf.RoundToInt((float)elapsed * sampleRate);
+            if (chunkStartFrame > writeFrame)
+                writeFrame = chunkStartFrame;
+
+            var endFrame = Mathf.Min(writeFrame + chunkFrames, totalFrames);
+            for (var f = writeFrame; f < endFrame && f < totalFrames; f++)
+            {
+                for (var c = 0; c < chunk.Channels; c++)
+                {
+                    var pcmIndex = ((f - writeFrame) * chunk.Channels + c) * sizeof(short);
+                    if (pcmIndex + 1 >= chunk.PcmData.Length)
+                        break;
+                    var value = (short)(chunk.PcmData[pcmIndex] | (chunk.PcmData[pcmIndex + 1] << 8));
+                    output[f * channels + c] = value / (float)short.MaxValue;
+                }
+            }
+
+            writeFrame = endFrame;
+        }
+
+        var clip = AudioClip.Create($"Voice_{actorNumber}", totalFrames, channels, sampleRate, false);
+        clip.SetData(output, 0);
         return clip;
     }
 

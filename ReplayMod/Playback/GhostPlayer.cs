@@ -10,12 +10,12 @@ public class GhostPlayer
     public List<ReplayEvent> Events;
     public double[] AbsoluteTimes;
     public List<VoiceChunk> VoiceChunks;
-    public double[] VoiceAbsoluteTimes;
     public VRRig Rig;
     public AudioSource VoiceSource;
+    public AudioClip VoiceClip;
+    public bool VoiceClipScheduled;
 
     public int NextEventIndex;
-    public int NextVoiceChunkIndex;
     public double PlaybackClock;
 
     public ReplayEvent PreviousFrame;

@@ -4,6 +4,7 @@ using BepInEx;
 using HarmonyLib;
 using ReplayMod.Core;
 using ReplayMod.IO;
+using ReplayMod.Patches;
 using ReplayMod.Playback;
 using UnityEngine;
 

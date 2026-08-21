@@ -76,7 +76,7 @@ public class ReplaySystem : ITickSystemPost
             return;
 
         ReplayRecorder.BeginRecording(player.ActorNumber, container.Rig, NetworkSystem.Instance.SimTime);
-        VoiceRecorder.BeginRecording(player.ActorNumber);
+        VoiceRecorder.BeginRecording(player.ActorNumber, container.Rig);
         _recordingActors.Add(player.ActorNumber);
     }
 
@@ -101,6 +101,7 @@ public class ReplaySystem : ITickSystemPost
                 continue;
 
             TryBeginRecordingForPlayer(player);
+            VoiceRecorder.RefreshSources(player.ActorNumber, container.Rig);
             ReplayRecorder.RecordFrame(player.ActorNumber, container.Rig, timestamp);
         }
     }

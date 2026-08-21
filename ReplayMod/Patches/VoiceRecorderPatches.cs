@@ -1,7 +1,8 @@
 using Photon.Voice;
 using Photon.Voice.Unity;
+using ReplayMod.Core;
 
-namespace ReplayMod.Core;
+namespace ReplayMod.Patches;
 
 internal static class VoiceRecorderPatches
 {
@@ -19,7 +20,7 @@ internal static class VoiceRecorderPatches
     private static class AudioOutputStartPatch
     {
         [HarmonyLib.HarmonyPostfix]
-        private static void Postfix(Speaker __instance, int frequency, int channels)
+        private static void Postfix(Speaker __instance, int frequency, int channels, int frameSamplesPerChannel)
         {
             VoiceRecorder.SetSpeakerFormat(__instance, frequency, channels);
         }

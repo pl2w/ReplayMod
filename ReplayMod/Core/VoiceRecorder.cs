@@ -1,6 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
-using HarmonyLib;
 using Photon.Voice;
 using Photon.Voice.Unity;
 using ReplayMod.Models;
@@ -16,13 +14,11 @@ public static class VoiceRecorder
 
     private static readonly Dictionary<int, List<VoiceChunk>> Buffers = new();
 
-    private static readonly Dictionary<int, List<VoiceCaptureFilter>> Filters = new();
-    private static readonly Dictionary<int, HashSet<AudioSource>> Sources = new();
     private static readonly Dictionary<int, double> LastTimestamps = new();
     private static readonly HashSet<int> ActiveActors = new();
     private static readonly Dictionary<Speaker, VoiceFormat> SpeakerFormats = new();
-    private static readonly MethodInfo FrameInfoGetter = AccessTools.PropertyGetter(typeof(FrameOut<float>), "Info");
-    private static readonly MethodInfo RemoteVoiceLinkGetter = AccessTools.PropertyGetter(typeof(Speaker), "RemoteVoiceLink");
+    private static readonly Dictionary<Speaker, int> SpeakerActorNumbers = new();
+    private static readonly object MappingLock = new();
     private static double _startDspTime;
     private static bool _isRecording;
 
@@ -31,8 +27,12 @@ public static class VoiceRecorder
         StopAll();
         lock (Buffers) { Buffers.Clear(); }
         LastTimestamps.Clear();
-        ActiveActors.Clear();
-        SpeakerFormats.Clear();
+        lock (MappingLock)
+        {
+            ActiveActors.Clear();
+            SpeakerFormats.Clear();
+            SpeakerActorNumbers.Clear();
+        }
         _startDspTime = AudioSettings.dspTime;
         _isRecording = true;
     }
@@ -40,66 +40,83 @@ public static class VoiceRecorder
     public static void BeginRecording(int actorNumber, VRRig rig)
     {
         BeginRecording(actorNumber);
+        RefreshSources(actorNumber, rig);
     }
 
     public static void BeginRecording(int actorNumber)
     {
         EnsureBuffer(actorNumber, 0);
-        ActiveActors.Add(actorNumber);
+        lock (MappingLock)
+        {
+            ActiveActors.Add(actorNumber);
+        }
     }
 
     public static void RefreshSources(int actorNumber, VRRig rig)
     {
         EnsureBuffer(actorNumber, 0);
-        ActiveActors.Add(actorNumber);
-
-        if (!Filters.TryGetValue(actorNumber, out var filters))
+        lock (MappingLock)
         {
-            filters = new List<VoiceCaptureFilter>();
-            Filters[actorNumber] = filters;
+            ActiveActors.Add(actorNumber);
         }
 
-        if (!Sources.TryGetValue(actorNumber, out var sources))
+        MapRigSpeakersToActors(actorNumber, rig);
+    }
+
+    private static Speaker MapRigSpeakersToActors(int actorNumber, VRRig rig)
+    {
+        if (rig == null)
+            return null;
+
+        var container = rig.rigContainer != null ? rig.rigContainer : rig.GetComponentInParent<RigContainer>();
+        if (container == null || container.Voice == null || container.Voice.SpeakerInUse == null)
+            return null;
+
+        var speaker = container.Voice.SpeakerInUse;
+        lock (MappingLock)
         {
-            sources = new HashSet<AudioSource>();
-            Sources[actorNumber] = sources;
+            if (!SpeakerActorNumbers.ContainsKey(speaker))
+                Debug.Log($"[ReplayMod] Voice: mapped rig speaker to actor {actorNumber} (speaker={speaker.name})");
+
+            SpeakerActorNumbers[speaker] = actorNumber;
         }
 
-        foreach (var source in rig.GetComponentsInChildren<AudioSource>(true))
-        {
-            if (!source || sources.Contains(source))
-                continue;
-
-            var filter = source.gameObject.AddComponent<VoiceCaptureFilter>();
-            filter.Initialize(actorNumber);
-            filters.Add(filter);
-            sources.Add(source);
-        }
+        return speaker;
     }
 
     public static void StopRecording(int actorNumber)
     {
-        if (!Filters.TryGetValue(actorNumber, out var filters))
-            return;
-
-        foreach (var filter in filters)
+        lock (MappingLock)
         {
-            if (filter)
-                UnityEngine.Object.Destroy(filter);
+            ActiveActors.Remove(actorNumber);
         }
+        RemoveSpeakerForActor(actorNumber);
+    }
 
-        Filters.Remove(actorNumber);
-        Sources.Remove(actorNumber);
-        ActiveActors.Remove(actorNumber);
+    private static void RemoveSpeakerForActor(int actorNumber)
+    {
+        var toRemove = new List<Speaker>();
+        lock (MappingLock)
+        {
+            foreach (var (speaker, mappedActor) in SpeakerActorNumbers)
+            {
+                if (mappedActor == actorNumber)
+                    toRemove.Add(speaker);
+            }
+
+            foreach (var speaker in toRemove)
+                SpeakerActorNumbers.Remove(speaker);
+        }
     }
 
     public static void StopAll()
     {
-        foreach (var actorNumber in new List<int>(Filters.Keys))
-            StopRecording(actorNumber);
-
-        ActiveActors.Clear();
-        SpeakerFormats.Clear();
+        lock (MappingLock)
+        {
+            ActiveActors.Clear();
+            SpeakerFormats.Clear();
+            SpeakerActorNumbers.Clear();
+        }
         _isRecording = false;
     }
 
@@ -115,25 +132,36 @@ public static class VoiceRecorder
         }
     }
 
-    internal static void RecordSamples(int actorNumber, float[] samples, int channels, int sampleRate)
-    {
-        if (!_isRecording || !ActiveActors.Contains(actorNumber))
-            return;
-
-        RecordSamplesAtCurrentTime(actorNumber, samples, channels, sampleRate);
-    }
-
     public static void RecordPhotonFrame(Speaker speaker, FrameOut<float> frame)
     {
         if (!_isRecording || speaker == null || frame == null || frame.EndOfStream)
             return;
 
-        var actorNumber = speaker.Actor?.ActorNumber ?? GetRemoteVoicePlayerId(speaker);
-        if (actorNumber <= 0 || !ActiveActors.Contains(actorNumber))
+        var actorNumber = GetGameActorNumber(speaker);
+        if (actorNumber <= 0 || !IsActiveActor(actorNumber))
             return;
 
-        var (sampleRate, channels) = GetFrameFormat(speaker, frame);
+        var (sampleRate, channels) = GetFrameFormat(speaker);
         RecordSamplesAtCurrentTime(actorNumber, frame.Buf, channels, sampleRate);
+    }
+
+    private static bool IsActiveActor(int actorNumber)
+    {
+        lock (MappingLock)
+        {
+            return ActiveActors.Contains(actorNumber);
+        }
+    }
+
+    private static int GetGameActorNumber(Speaker speaker)
+    {
+        lock (MappingLock)
+        {
+            if (SpeakerActorNumbers.TryGetValue(speaker, out var mapped))
+                return mapped;
+        }
+
+        return -1;
     }
 
     public static void SetSpeakerFormat(Speaker speaker, int sampleRate, int channels)
@@ -141,34 +169,21 @@ public static class VoiceRecorder
         if (speaker == null || sampleRate <= 0 || channels <= 0)
             return;
 
-        SpeakerFormats[speaker] = new VoiceFormat(sampleRate, channels);
+        lock (MappingLock)
+        {
+            SpeakerFormats[speaker] = new VoiceFormat(sampleRate, channels);
+        }
     }
 
-    private static (int SampleRate, int Channels) GetFrameFormat(Speaker speaker, FrameOut<float> frame)
+    private static (int SampleRate, int Channels) GetFrameFormat(Speaker speaker)
     {
-        if (SpeakerFormats.TryGetValue(speaker, out var format))
-            return (format.SampleRate, format.Channels);
+        lock (MappingLock)
+        {
+            if (SpeakerFormats.TryGetValue(speaker, out var format))
+                return (format.SampleRate, format.Channels);
+        }
 
-        var info = GetFrameInfo(frame);
-        var sampleRate = info.SamplingRate > 0 ? info.SamplingRate : 16000;
-        var channels = info.Channels > 0 ? info.Channels : 1;
-        return (sampleRate, channels);
-    }
-
-    private static VoiceInfo GetFrameInfo(FrameOut<float> frame)
-    {
-        if (FrameInfoGetter?.Invoke(frame, null) is VoiceInfo info)
-            return info;
-
-        return default;
-    }
-
-    private static int GetRemoteVoicePlayerId(Speaker speaker)
-    {
-        if (RemoteVoiceLinkGetter?.Invoke(speaker, null) is RemoteVoiceLink link)
-            return link.PlayerId;
-
-        return -1;
+        return (16000, 1);
     }
 
     private static void RecordSamplesAtCurrentTime(int actorNumber, float[] samples, int channels, int sampleRate)
@@ -195,13 +210,14 @@ public static class VoiceRecorder
 
         lock (Buffers)
         {
-            Buffers[actorNumber].Add(new VoiceChunk
+            var chunk = new VoiceChunk
             {
                 DeltaTime = ConsumeDeltaTime(actorNumber, timestamp),
                 SampleRate = StoredSampleRate,
                 Channels = StoredChannels,
                 PcmData = pcm
-            });
+            };
+            Buffers[actorNumber].Add(chunk);
         }
     }
 
@@ -274,25 +290,5 @@ public static class VoiceRecorder
     {
         public readonly int SampleRate = sampleRate;
         public readonly int Channels = channels;
-    }
-}
-
-public sealed class VoiceCaptureFilter : MonoBehaviour
-{
-    private int _actorNumber;
-    private bool _initialized;
-
-    public void Initialize(int actorNumber)
-    {
-        _actorNumber = actorNumber;
-        _initialized = true;
-    }
-
-    private void OnAudioFilterRead(float[] data, int channels)
-    {
-        if (!_initialized)
-            return;
-
-        VoiceRecorder.RecordSamples(_actorNumber, data, channels, AudioSettings.outputSampleRate);
     }
 }
