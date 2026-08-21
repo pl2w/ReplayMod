@@ -23,7 +23,7 @@ public static class ReplayRecorder
         
         if (!Buffers.ContainsKey(actorNumber))
         {
-            Buffers[actorNumber] = new List<ReplayEvent>();
+            Buffers[actorNumber] = [];
             LastTimestamps[actorNumber] = timestamp;
         }
         
