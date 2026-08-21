@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using BepInEx;
+using HarmonyLib;
 using ReplayMod.Core;
 using ReplayMod.IO;
 using ReplayMod.Playback;
@@ -11,11 +12,15 @@ namespace ReplayMod;
 [BepInPlugin(PluginInfo.Guid, PluginInfo.Name, PluginInfo.Version)]
 public class Plugin : BaseUnityPlugin
 {
+    private Harmony _harmony;
     private ReplaySystem _replaySystem;
     private ReplayPlayer _replayPlayer;
 
     public void Awake()
     {
+        _harmony = new Harmony(PluginInfo.Guid);
+        _harmony.PatchAll(typeof(VoiceRecorderPatches).Assembly);
+
         _replaySystem = new ReplaySystem();
         _replayPlayer = gameObject.AddComponent<ReplayPlayer>();
     }

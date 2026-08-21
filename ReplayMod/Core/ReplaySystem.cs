@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using ReplayMod.IO;
 
 namespace ReplayMod.Core;
@@ -6,6 +7,7 @@ namespace ReplayMod.Core;
 public class ReplaySystem : ITickSystemPost
 {
     private const double RecordIntervalSeconds = 1.0 / 30.0;
+    private readonly HashSet<int> _recordingActors = [];
     private double _nextRecordTime;
 
     public bool IsRecording { get; private set; }
@@ -16,12 +18,17 @@ public class ReplaySystem : ITickSystemPost
         if (IsRecording) StopRecording();
 
         ReplayRecorder.Reset();
+        VoiceRecorder.Reset();
+        _recordingActors.Clear();
         _nextRecordTime = 0;
         TickSystem<object>.AddPostTickCallback(this);
         IsRecording = true;
 
         foreach (var player in NetworkSystem.Instance.AllNetPlayers)
+        {
+            VoiceRecorder.BeginRecording(player.ActorNumber);
             TryBeginRecordingForPlayer(player);
+        }
 
         RoomSystem.PlayerJoinedEvent += OnPlayerJoined;
     }
@@ -36,28 +43,41 @@ public class ReplaySystem : ITickSystemPost
         foreach (var player in NetworkSystem.Instance.AllNetPlayers)
         {
             if (VRRigCache.Instance.TryGetVrrig(player, out var container))
+            {
                 ReplayRecorder.StopRecording(player.ActorNumber, container.Rig);
+                VoiceRecorder.StopRecording(player.ActorNumber);
+            }
         }
 
         IsRecording = false;
+        _recordingActors.Clear();
 
-        if (ReplayRecorder.Buffers.Count == 0) return;
+        var voiceBuffers = VoiceRecorder.SnapshotBuffers();
+        VoiceRecorder.StopAll();
+
+        if (ReplayRecorder.Buffers.Count == 0 && voiceBuffers.Count == 0) return;
 
         var fileName = $"replay_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}";
-        ReplayWriter.Save(fileName, ReplayRecorder.Buffers);
+        ReplayWriter.Save(fileName, ReplayRecorder.Buffers, voiceBuffers);
     }
 
     private void OnPlayerJoined(NetPlayer player)
     {
+        VoiceRecorder.BeginRecording(player.ActorNumber);
         TryBeginRecordingForPlayer(player);
     }
 
     private void TryBeginRecordingForPlayer(NetPlayer player)
     {
+        if (_recordingActors.Contains(player.ActorNumber))
+            return;
+
         if (!VRRigCache.Instance.TryGetVrrig(player, out var container))
             return;
 
         ReplayRecorder.BeginRecording(player.ActorNumber, container.Rig, NetworkSystem.Instance.SimTime);
+        VoiceRecorder.BeginRecording(player.ActorNumber);
+        _recordingActors.Add(player.ActorNumber);
     }
 
     public void PostTick()
@@ -75,9 +95,12 @@ public class ReplaySystem : ITickSystemPost
 
         foreach (var player in NetworkSystem.Instance.AllNetPlayers)
         {
+            VoiceRecorder.BeginRecording(player.ActorNumber);
+
             if (!VRRigCache.Instance.TryGetVrrig(player, out var container))
                 continue;
 
+            TryBeginRecordingForPlayer(player);
             ReplayRecorder.RecordFrame(player.ActorNumber, container.Rig, timestamp);
         }
     }

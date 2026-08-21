@@ -9,9 +9,9 @@ namespace ReplayMod.IO;
 public static class ReplayReader
 {
     private const int MagicNumber = 0x52504C59;
-    private const int FormatVersion = 1;
+    private const int FormatVersion = 2;
 
-    public static Dictionary<int, List<ReplayEvent>> Load(string path)
+    public static ReplayData Load(string path)
     {
         using var fileStream = File.OpenRead(path);
         using var gzipStream = new GZipStream(fileStream, CompressionMode.Decompress);
@@ -22,13 +22,13 @@ public static class ReplayReader
             throw new InvalidDataException($"Not a valid replay file: {path}");
 
         var version = reader.ReadInt32();
-        if (version != FormatVersion)
-            throw new InvalidDataException($"Unsupported replay version {version} (expected {FormatVersion})");
+        if (version is < 1 or > FormatVersion)
+            throw new InvalidDataException($"Unsupported replay version {version} (expected 1-{FormatVersion})");
 
         var recordedAt = DateTime.FromBinary(reader.ReadInt64());
+        var replay = new ReplayData();
 
         var playerCount = reader.ReadInt32();
-        var streams = new Dictionary<int, List<ReplayEvent>>(playerCount);
 
         for (var p = 0; p < playerCount; p++)
         {
@@ -39,10 +39,42 @@ public static class ReplayReader
             for (var i = 0; i < eventCount; i++)
                 events.Add(ReadEvent(reader));
 
-            streams[actorNumber] = events;
+            replay.PoseStreams[actorNumber] = events;
         }
 
-        return streams;
+        if (version < 2)
+            return replay;
+
+        var voiceStreamCount = reader.ReadInt32();
+        for (var p = 0; p < voiceStreamCount; p++)
+        {
+            var actorNumber = reader.ReadInt32();
+            var chunkCount = reader.ReadInt32();
+            var chunks = new List<VoiceChunk>(chunkCount);
+
+            for (var i = 0; i < chunkCount; i++)
+                chunks.Add(ReadVoiceChunk(reader));
+
+            replay.VoiceStreams[actorNumber] = chunks;
+        }
+
+        return replay;
+    }
+
+    private static VoiceChunk ReadVoiceChunk(BinaryReader reader)
+    {
+        var deltaTime = reader.ReadSingle();
+        var sampleRate = reader.ReadInt32();
+        var channels = reader.ReadInt32();
+        var byteCount = reader.ReadInt32();
+
+        return new VoiceChunk
+        {
+            DeltaTime = deltaTime,
+            SampleRate = sampleRate,
+            Channels = channels,
+            PcmData = byteCount > 0 ? reader.ReadBytes(byteCount) : []
+        };
     }
 
     private static ReplayEvent ReadEvent(BinaryReader reader)

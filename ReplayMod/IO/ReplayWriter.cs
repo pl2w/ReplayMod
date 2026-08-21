@@ -10,12 +10,15 @@ namespace ReplayMod.IO;
 public static class ReplayWriter
 {
     private const int MagicNumber = 0x52504C59; // "RPLY"
-    private const int FormatVersion = 1;
+    private const int FormatVersion = 2;
 
     public static readonly string ReplayFolder =
         Path.Combine(Paths.PluginPath, "ReplayMod", "Recordings");
 
-    public static string Save(string fileName, Dictionary<int, List<ReplayEvent>> streams)
+    public static string Save(
+        string fileName,
+        Dictionary<int, List<ReplayEvent>> poseStreams,
+        Dictionary<int, List<VoiceChunk>> voiceStreams)
     {
         Directory.CreateDirectory(ReplayFolder);
 
@@ -29,9 +32,9 @@ public static class ReplayWriter
         writer.Write(FormatVersion);
         writer.Write(DateTime.UtcNow.ToBinary());
 
-        writer.Write(streams.Count);
+        writer.Write(poseStreams.Count);
 
-        foreach (var (actorNumber, events) in streams)
+        foreach (var (actorNumber, events) in poseStreams)
         {
             writer.Write(actorNumber);
             writer.Write(events.Count);
@@ -40,7 +43,39 @@ public static class ReplayWriter
                 WriteEvent(writer, e);
         }
 
+        var nonEmptyVoiceStreamCount = 0;
+        foreach (var (_, chunks) in voiceStreams)
+        {
+            if (chunks.Count > 0)
+                nonEmptyVoiceStreamCount++;
+        }
+
+        writer.Write(nonEmptyVoiceStreamCount);
+
+        foreach (var (actorNumber, chunks) in voiceStreams)
+        {
+            if (chunks.Count == 0)
+                continue;
+
+            writer.Write(actorNumber);
+            writer.Write(chunks.Count);
+
+            foreach (var chunk in chunks)
+                WriteVoiceChunk(writer, chunk);
+        }
+
         return path;
+    }
+
+    private static void WriteVoiceChunk(BinaryWriter writer, VoiceChunk chunk)
+    {
+        writer.Write(chunk.DeltaTime);
+        writer.Write(chunk.SampleRate);
+        writer.Write(chunk.Channels);
+        writer.Write(chunk.PcmData?.Length ?? 0);
+
+        if (chunk.PcmData is { Length: > 0 })
+            writer.Write(chunk.PcmData);
     }
 
     private static void WriteEvent(BinaryWriter writer, ReplayEvent e)

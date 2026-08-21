@@ -16,26 +16,58 @@ public class ReplayPlayer : MonoBehaviour
     {
         Stop();
 
-        var streams = ReplayReader.Load(path);
+        var replay = ReplayReader.Load(path);
 
-        foreach (var (actorNumber, events) in streams)
+        foreach (var (actorNumber, events) in replay.PoseStreams)
         {
             if (events.Count == 0) continue;
 
-            var ghost = new GhostPlayer
-            {
-                ActorNumber = actorNumber,
-                Events = events,
-                AbsoluteTimes = BuildAbsoluteTimes(events),
-                Rig = spawnGhostRig(actorNumber),
-                NextEventIndex = 0,
-                PlaybackClock = 0
-            };
+            replay.VoiceStreams.TryGetValue(actorNumber, out var voiceChunks);
+            voiceChunks ??= [];
 
-            _ghosts.Add(ghost);
+            AddGhost(actorNumber, events, voiceChunks, spawnGhostRig);
+        }
+
+        foreach (var (actorNumber, voiceChunks) in replay.VoiceStreams)
+        {
+            if (voiceChunks.Count == 0 || replay.PoseStreams.ContainsKey(actorNumber))
+                continue;
+
+            AddGhost(actorNumber, [], voiceChunks, spawnGhostRig);
         }
 
         _isPlaying = true;
+    }
+
+    private void AddGhost(
+        int actorNumber,
+        List<ReplayEvent> events,
+        List<VoiceChunk> voiceChunks,
+        System.Func<int, VRRig> spawnGhostRig)
+    {
+        var rig = spawnGhostRig(actorNumber);
+        if (rig == null)
+            return;
+
+        var voiceSource = rig.gameObject.AddComponent<AudioSource>();
+        voiceSource.playOnAwake = false;
+        voiceSource.spatialBlend = 1f;
+
+        var ghost = new GhostPlayer
+        {
+            ActorNumber = actorNumber,
+            Events = events,
+            AbsoluteTimes = BuildAbsoluteTimes(events),
+            VoiceChunks = voiceChunks,
+            VoiceAbsoluteTimes = BuildAbsoluteTimes(voiceChunks),
+            Rig = rig,
+            VoiceSource = voiceSource,
+            NextEventIndex = 0,
+            NextVoiceChunkIndex = 0,
+            PlaybackClock = 0
+        };
+
+        _ghosts.Add(ghost);
     }
 
     public void Stop()
@@ -62,6 +94,7 @@ public class ReplayPlayer : MonoBehaviour
     private void AdvanceGhost(GhostPlayer ghost, float dt)
     {
         ghost.PlaybackClock += dt;
+        AdvanceVoice(ghost);
         
         while (ghost.NextEventIndex < ghost.Events.Count &&
                ghost.AbsoluteTimes[ghost.NextEventIndex] <= ghost.PlaybackClock)
@@ -151,6 +184,43 @@ public class ReplayPlayer : MonoBehaviour
         rig.leftThumb.MapOtherFinger(handSync % 1000000 / 1000000f, t);
     }
 
+    private static void AdvanceVoice(GhostPlayer ghost)
+    {
+        while (ghost.NextVoiceChunkIndex < ghost.VoiceChunks.Count &&
+               ghost.VoiceAbsoluteTimes[ghost.NextVoiceChunkIndex] <= ghost.PlaybackClock)
+        {
+            var chunk = ghost.VoiceChunks[ghost.NextVoiceChunkIndex];
+            var clip = CreateClip(ghost.ActorNumber, ghost.NextVoiceChunkIndex, chunk);
+            if (clip != null)
+                ghost.VoiceSource.PlayOneShot(clip);
+
+            ghost.NextVoiceChunkIndex++;
+        }
+    }
+
+    private static AudioClip CreateClip(int actorNumber, int chunkIndex, VoiceChunk chunk)
+    {
+        if (chunk.PcmData == null || chunk.PcmData.Length == 0 || chunk.Channels <= 0 || chunk.SampleRate <= 0)
+            return null;
+
+        var sampleCount = chunk.PcmData.Length / sizeof(short);
+        var frameCount = sampleCount / chunk.Channels;
+        if (frameCount <= 0)
+            return null;
+
+        var samples = new float[sampleCount];
+        for (var i = 0; i < sampleCount; i++)
+        {
+            var offset = i * sizeof(short);
+            var value = (short)(chunk.PcmData[offset] | (chunk.PcmData[offset + 1] << 8));
+            samples[i] = value / (float)short.MaxValue;
+        }
+
+        var clip = AudioClip.Create($"Voice_{actorNumber}_{chunkIndex}", frameCount, chunk.Channels, chunk.SampleRate, false);
+        clip.SetData(samples, 0);
+        return clip;
+    }
+
     private static double[] BuildAbsoluteTimes(List<ReplayEvent> events)
     {
         var times = new double[events.Count];
@@ -158,6 +228,18 @@ public class ReplayPlayer : MonoBehaviour
         for (var i = 0; i < events.Count; i++)
         {
             sum += events[i].DeltaTime;
+            times[i] = sum;
+        }
+        return times;
+    }
+
+    private static double[] BuildAbsoluteTimes(List<VoiceChunk> chunks)
+    {
+        var times = new double[chunks.Count];
+        var sum = 0.0;
+        for (var i = 0; i < chunks.Count; i++)
+        {
+            sum += chunks[i].DeltaTime;
             times[i] = sum;
         }
         return times;

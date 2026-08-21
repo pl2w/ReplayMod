@@ -125,6 +125,10 @@
             <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.dll</HintPath>
             <Private>false</Private>
         </Reference>
+        <Reference Include="UnityEngine.AudioModule">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.AudioModule.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
         <Reference Include="UnityEngine.IMGUIModule">
             <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.IMGUIModule.dll</HintPath>
             <Private>false</Private>
