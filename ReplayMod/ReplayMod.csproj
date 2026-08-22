@@ -129,10 +129,6 @@
             <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.AudioModule.dll</HintPath>
             <Private>false</Private>
         </Reference>
-        <Reference Include="UnityEngine.IMGUIModule">
-            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.IMGUIModule.dll</HintPath>
-            <Private>false</Private>
-        </Reference>
     </ItemGroup>
 
     <Import Project="Directory.Build.local.props" Condition="Exists('Directory.Build.local.props')"/>

@@ -1,10 +1,9 @@
-using ImGuiNET;
 using System.IO;
 using System.Linq;
 using BepInEx;
-using DearImGuiInjection.BepInEx;
 using ReplayMod.IO;
 using ReplayMod.Playback;
+using UnityEngine;
 
 namespace ReplayMod.UI;
 
@@ -12,63 +11,27 @@ namespace ReplayMod.UI;
 [BepInDependency(ReplayMod.PluginInfo.Guid)]
 public class Plugin : BaseUnityPlugin
 {
-    public void Awake()
+    public void OnGUI()
     {
-        DearImGuiInjection.DearImGuiInjection.Render += OnRender;
-    }
+        var replaySystem = ReplayMod.Plugin.ReplaySystem;
+        var replayPlayer = ReplayMod.Plugin.ReplayPlayer;
 
-    public void OnDestroy()
-    {
-        DearImGuiInjection.DearImGuiInjection.Render -= OnRender;
-    }
+        var isRecording = replaySystem is { IsRecording: true };
 
-    private static void OnRender()
-    {
-        if (!DearImGuiInjection.DearImGuiInjection.IsCursorVisible)
-            return;
+        GUI.enabled = !isRecording;
+        if (GUI.Button(new Rect(10, 10, 120, 20), "Start Recording"))
+            replaySystem?.StartRecording();
 
-        var open = true;
-        if (ImGui.Begin(PluginInfo.Name, ref open, (int)ImGuiWindowFlags.None))
-        {
-            var replaySystem = ReplayMod.Plugin.ReplaySystem;
-            var replayPlayer = ReplayMod.Plugin.ReplayPlayer;
+        GUI.enabled = isRecording;
+        if (GUI.Button(new Rect(10, 40, 120, 20), "Stop Recording"))
+            replaySystem?.StopRecording();
 
-            var isRecording = replaySystem is { IsRecording: true };
+        GUI.enabled = true;
+        if (GUI.Button(new Rect(10, 70, 120, 20), "Play Latest"))
+            PlayLatestReplay();
 
-            ImGui.BeginDisabled(isRecording);
-            if (ImGui.Button("Start Recording"))
-            {
-                UnityMainThreadDispatcher.Enqueue(() =>
-                {
-                    replaySystem?.StartRecording();
-                });
-            }
-            ImGui.EndDisabled();
-
-            ImGui.BeginDisabled(!isRecording);
-            if (ImGui.Button("Stop Recording"))
-            {
-                UnityMainThreadDispatcher.Enqueue(() =>
-                {
-                    replaySystem?.StopRecording();
-                });
-            }
-            ImGui.EndDisabled();
-
-            if (ImGui.Button("Play Latest"))
-            {
-                UnityMainThreadDispatcher.Enqueue(PlayLatestReplay);
-            }
-
-            if (ImGui.Button("Stop Playback"))
-            {
-                UnityMainThreadDispatcher.Enqueue(() =>
-                {
-                    replayPlayer?.Stop();
-                });
-            }
-        }
-        ImGui.End();
+        if (GUI.Button(new Rect(10, 100, 120, 20), "Stop Playback"))
+            replayPlayer?.Stop();
     }
 
     private static void PlayLatestReplay()

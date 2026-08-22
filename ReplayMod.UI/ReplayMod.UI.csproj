@@ -125,11 +125,9 @@
             <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.dll</HintPath>
             <Private>false</Private>
         </Reference>
-        <Reference Include="DearImGuiInjection">
-            <HintPath>$(GorillaTagDir)/BepInEx/plugins/DearImGuiInjection/DearImGuiInjection.dll</HintPath>
-        </Reference>
-        <Reference Include="ImGui.NET">
-            <HintPath>$(GorillaTagDir)/BepInEx/plugins/DearImGuiInjection/ImGui.NET.dll</HintPath>
+        <Reference Include="UnityEngine.IMGUIModule">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.IMGUIModule.dll</HintPath>
+            <Private>false</Private>
         </Reference>
     </ItemGroup>
 
