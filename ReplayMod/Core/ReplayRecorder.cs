@@ -26,6 +26,7 @@ public sealed class ReplayRecorder
         _actorNumber = actorNumber;
         _rig = rig;
         _lastTimestamp = timestamp;
+        CurrentTimestamp = timestamp;
 
         _colorHandler = color =>
             Add(ReplayEventType.ColorChanged, new ColorChangedData
@@ -176,7 +177,9 @@ public sealed class ReplayRecorder
     private float ConsumeDeltaTime(double timestamp)
     {
         var delta = (float)(timestamp - _lastTimestamp);
+        if (delta < 0f)
+            return 0f;
         _lastTimestamp = timestamp;
-        return delta < 0f ? 0f : delta;
+        return delta;
     }
 }

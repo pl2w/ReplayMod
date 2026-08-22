@@ -8,8 +8,10 @@ namespace ReplayMod.Core;
 public class ReplaySystem : ITickSystemPost
 {
     private const double RecordIntervalSeconds = 1.0 / 30.0;
+    private const double MinValidSimTimeSeconds = 60.0;
     private readonly Dictionary<int, ReplayRecorder> _recorders = [];
     private readonly HashSet<int> _recordingActors = [];
+    private int _localActor;
     private double _nextRecordTime;
 
     public bool IsRecording { get; private set; }
@@ -22,6 +24,7 @@ public class ReplaySystem : ITickSystemPost
         _recorders.Clear();
         VoiceRecorder.Reset();
         _recordingActors.Clear();
+        _localActor = 0;
         _nextRecordTime = 0;
         TickSystem<object>.AddPostTickCallback(this);
         IsRecording = true;
@@ -33,6 +36,8 @@ public class ReplaySystem : ITickSystemPost
             VoiceRecorder.BeginRecording(player.ActorNumber);
             TryBeginRecordingForPlayer(player);
         }
+
+        TryBeginRecordingForLocalPlayer();
 
         RoomSystem.PlayerJoinedEvent += OnPlayerJoined;
         RoomSystem.PlayerLeftEvent += OnPlayerLeft;
@@ -53,6 +58,7 @@ public class ReplaySystem : ITickSystemPost
 
         IsRecording = false;
         _recordingActors.Clear();
+        _localActor = 0;
 
         var voiceBuffers = VoiceRecorder.SnapshotBuffers();
         VoiceRecorder.StopAll();
@@ -108,6 +114,12 @@ public class ReplaySystem : ITickSystemPost
         if (_recordingActors.Contains(player.ActorNumber))
             return;
 
+        if (NetworkSystem.Instance.SimTime < MinValidSimTimeSeconds)
+        {
+            Logging.ModLog.Debug($"actor={player.ActorNumber} SimTime not synced yet ({NetworkSystem.Instance.SimTime:F3}); deferring");
+            return;
+        }
+
         if (!VRRigCache.Instance.TryGetVrrig(player, out var container))
         {
             Logging.ModLog.Debug($"actor={player.ActorNumber} has no VRRig yet; deferring");
@@ -120,6 +132,25 @@ public class ReplaySystem : ITickSystemPost
 
         _recordingActors.Add(player.ActorNumber);
         Logging.ModLog.Info($"Started recording actor={player.ActorNumber}");
+    }
+
+    private void TryBeginRecordingForLocalPlayer()
+    {
+        if (_localActor != 0)
+            return;
+
+        var netSystem = NetworkSystem.Instance;
+        if (netSystem == null || !netSystem.InRoom || netSystem.SimTime < MinValidSimTimeSeconds)
+            return;
+
+        var netPlayer = netSystem.LocalPlayer;
+        var rig = GorillaTagger.Instance != null ? GorillaTagger.Instance.offlineVRRig : null;
+        if (netPlayer == null || rig == null)
+            return;
+
+        _localActor = netPlayer.ActorNumber;
+        _recorders[_localActor] = new ReplayRecorder(_localActor, rig, netSystem.SimTime);
+        Logging.ModLog.Info($"Started recording LOCAL actor={_localActor}");
     }
 
     public void RecordHandTap(int actorNumber, int soundIndex, float volume, bool isLeftHand, double timestamp)
@@ -161,5 +192,9 @@ public class ReplaySystem : ITickSystemPost
 
             VoiceRecorder.RefreshSources(player.ActorNumber, container.Rig);
         }
+
+        TryBeginRecordingForLocalPlayer();
+        if (_localActor != 0 && _recorders.TryGetValue(_localActor, out var localRecorder))
+            localRecorder.RecordFrame(timestamp);
     }
 }

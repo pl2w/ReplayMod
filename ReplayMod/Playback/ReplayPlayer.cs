@@ -160,6 +160,8 @@ public class ReplayPlayer : MonoBehaviour
                     break;
                 case ReplayEventType.HandTap:
                     var handTap = (HandTapData)e.Payload;
+                    Logging.ModLog.Debug(
+                        $"[tap] play actor={ghost.ActorNumber} sound={handTap.SoundIndex} vol={handTap.Volume:F2} left={handTap.IsLeftHand} at t={eventTime:F3}");
                     ghost.Rig.PlayHandTapLocal(handTap.SoundIndex, handTap.IsLeftHand, handTap.Volume);
                     break;
                 case ReplayEventType.CosmeticsChanged:
@@ -366,6 +368,16 @@ public class ReplayPlayer : MonoBehaviour
             sum += events[i].DeltaTime;
             times[i] = sum;
         }
+
+        if (times.Length > 0 && times[0] > 60.0)
+        {
+            Logging.ModLog.Warn(
+                $"Stream starts at t={times[0]:F1}s (clock-sync artifact from an older recording); normalizing to 0");
+            var offset = times[0];
+            for (var i = 0; i < times.Length; i++)
+                times[i] -= offset;
+        }
+
         return times;
     }
 
