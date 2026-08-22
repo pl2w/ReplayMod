@@ -8,5 +8,6 @@ public enum ReplayEventType : byte
     NameChanged = 3,
     PlayerLeft = 4,
     SoundEffect = 5,
-    HandTap = 6
+    HandTap = 6,
+    CosmeticsChanged = 7
 }

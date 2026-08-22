@@ -15,6 +15,7 @@ public sealed class ReplayRecorder
 
     private double _lastTimestamp;
     private sbyte _lastSampledMat;
+    private string[] _lastRecordedCosmetics;
 
     public double CurrentTimestamp { get; set; }
 
@@ -57,6 +58,47 @@ public sealed class ReplayRecorder
         rig.OnColorChanged += _colorHandler;
         rig.OnMaterialIndexChanged += _materialHandler;
         rig.OnPlayerNameVisibleChanged += _nameHandler;
+
+        RecordCosmeticsIfChanged(timestamp);
+    }
+
+    private void RecordCosmeticsIfChanged(double timestamp)
+    {
+        var items = _rig.cosmeticSet?.items;
+        if (items == null || items.Length == 0)
+            return;
+
+        var current = new string[items.Length];
+        for (var i = 0; i < items.Length; i++)
+            current[i] = items[i].displayName;
+
+        if (_lastRecordedCosmetics != null && SlotsEqual(_lastRecordedCosmetics, current))
+            return;
+
+        _lastRecordedCosmetics = current;
+
+        var worn = 0;
+        foreach (var name in current)
+        {
+            if (!string.IsNullOrEmpty(name) && name != "NOTHING")
+                worn++;
+        }
+
+        Logging.ModLog.Info(
+            $"[cos] actor={_actorNumber} {worn} worn cosmetics at t={timestamp:F3}");
+        Add(ReplayEventType.CosmeticsChanged, new CosmeticsData { Cosmetics = current }, timestamp);
+    }
+
+    private static bool SlotsEqual(string[] a, string[] b)
+    {
+        if (a.Length != b.Length)
+            return false;
+        for (var i = 0; i < a.Length; i++)
+        {
+            if (!string.Equals(a[i], b[i], StringComparison.Ordinal))
+                return false;
+        }
+        return true;
     }
 
     public void RecordFrame(double timestamp)
@@ -67,6 +109,8 @@ public sealed class ReplayRecorder
             _lastSampledMat = sampledMat;
             Logging.ModLog.Debug($"[mat] actor={_actorNumber} frame sample setMatIndex={sampledMat} at t={timestamp:F3}");
         }
+
+        RecordCosmeticsIfChanged(timestamp);
 
         Add(ReplayEventType.Frame, new FrameData
         {
@@ -133,6 +177,6 @@ public sealed class ReplayRecorder
     {
         var delta = (float)(timestamp - _lastTimestamp);
         _lastTimestamp = timestamp;
-        return delta;
+        return delta < 0f ? 0f : delta;
     }
 }

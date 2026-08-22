@@ -53,9 +53,13 @@ public class ReplayPlayer : MonoBehaviour
         if (rig == null)
             return;
 
-        var voiceSource = rig.gameObject.AddComponent<AudioSource>();
-        voiceSource.playOnAwake = false;
-        voiceSource.spatialBlend = 1f;
+        var voiceSource = rig.GetComponent<AudioSource>();
+        if (!voiceSource)
+        {
+            voiceSource = rig.gameObject.AddComponent<AudioSource>();
+            voiceSource.playOnAwake = false;
+            voiceSource.spatialBlend = 1f;
+        }
         
         rig.remoteUseReplacementVoice = true;
         rig.IsMicEnabled = true;
@@ -84,16 +88,18 @@ public class ReplayPlayer : MonoBehaviour
         {
             if (ghost.VoiceClip)
                 Destroy(ghost.VoiceClip);
-            if (ghost.Rig)
-                Destroy(ghost.Rig.gameObject);
+            GhostRigFactory.Release(ghost.Rig);
         }
         _ghosts.Clear();
+        GhostCosmetics.Reset();
         _isPlaying = false;
     }
 
     private void Update()
     {
         if (!_isPlaying) return;
+
+        GhostCosmetics.Tick();
 
         var dt = Time.deltaTime * _playbackSpeed;
 
@@ -110,7 +116,7 @@ public class ReplayPlayer : MonoBehaviour
             if (!_ghosts[i].HasLeft) continue;
             Logging.ModLog.Info($"Ghost actor={_ghosts[i].ActorNumber} left at t={_ghosts[i].PlaybackClock:F3}; removing");
             if (_ghosts[i].VoiceClip) Destroy(_ghosts[i].VoiceClip);
-            if (_ghosts[i].Rig) Destroy(_ghosts[i].Rig.gameObject);
+            GhostRigFactory.Release(_ghosts[i].Rig);
             _ghosts.RemoveAt(i);
         }
     }
@@ -155,6 +161,9 @@ public class ReplayPlayer : MonoBehaviour
                 case ReplayEventType.HandTap:
                     var handTap = (HandTapData)e.Payload;
                     ghost.Rig.PlayHandTapLocal(handTap.SoundIndex, handTap.IsLeftHand, handTap.Volume);
+                    break;
+                case ReplayEventType.CosmeticsChanged:
+                    ApplyCosmetics(ghost, ((CosmeticsData)e.Payload).Cosmetics, eventTime);
                     break;
                 case ReplayEventType.PlayerLeft:
                     ghost.HasLeft = true;
@@ -218,6 +227,22 @@ public class ReplayPlayer : MonoBehaviour
         rig.leftIndex.MapOtherFinger(handSync % 10000 / 10000f, t);
         rig.leftMiddle.MapOtherFinger(handSync % 100000 / 100000f, t);
         rig.leftThumb.MapOtherFinger(handSync % 1000000 / 1000000f, t);
+    }
+
+    private static void ApplyCosmetics(GhostPlayer ghost, string[] cosmetics, double eventTime)
+    {
+        if (ghost.Rig == null || cosmetics == null)
+            return;
+
+        var worn = 0;
+        foreach (var name in cosmetics)
+        {
+            if (!string.IsNullOrEmpty(name) && name != "NOTHING")
+                worn++;
+        }
+
+        Logging.ModLog.Debug($"[cos] play actor={ghost.ActorNumber} apply {worn} worn cosmetics at t={eventTime:F3}");
+        GhostCosmetics.Apply(ghost.Rig, cosmetics);
     }
 
     private static void AdvanceVoice(GhostPlayer ghost)

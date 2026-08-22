@@ -38,3 +38,8 @@ public sealed class HandTapData
     public float Volume;
     public bool IsLeftHand;
 }
+
+public sealed class CosmeticsData
+{
+    public string[] Cosmetics;
+}

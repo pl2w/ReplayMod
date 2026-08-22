@@ -18,6 +18,7 @@ public static class VoiceRecorder
     private static readonly Dictionary<int, double> LastTimestamps = new();
     private static readonly HashSet<int> ActiveActors = new();
     private static readonly Dictionary<Speaker, VoiceFormat> SpeakerFormats = new();
+    private static readonly HashSet<Speaker> UnknownFormatWarned = [];
     private static readonly Dictionary<Speaker, int> SpeakerActorNumbers = new();
     private static readonly object MappingLock = new();
     private static double _startDspTime;
@@ -121,6 +122,7 @@ public static class VoiceRecorder
         {
             ActiveActors.Clear();
             SpeakerFormats.Clear();
+            UnknownFormatWarned.Clear();
             SpeakerActorNumbers.Clear();
         }
         _isRecording = false;
@@ -148,7 +150,12 @@ public static class VoiceRecorder
         if (actorNumber <= 0 || !IsActiveActor(actorNumber))
             return;
 
-        var (sampleRate, channels) = GetFrameFormat(speaker);
+        if (!TryGetFrameFormat(speaker, out var sampleRate, out var channels))
+        {
+            WarnUnknownFormat(speaker);
+            return;
+        }
+
         RecordSamplesAtCurrentTime(actorNumber, frame.Buf, channels, sampleRate);
     }
 
@@ -178,20 +185,63 @@ public static class VoiceRecorder
 
         lock (MappingLock)
         {
+            if (!SpeakerFormats.ContainsKey(speaker) && SpeakerFormats.Count > 0)
+                PruneDestroyedSpeakersLocked();
+
             SpeakerFormats[speaker] = new VoiceFormat(sampleRate, channels);
+            UnknownFormatWarned.Remove(speaker);
         }
         ModLog.Debug($"speaker={speaker.name} format {sampleRate}Hz/{channels}ch");
     }
 
-    private static (int SampleRate, int Channels) GetFrameFormat(Speaker speaker)
+    private static bool TryGetFrameFormat(Speaker speaker, out int sampleRate, out int channels)
     {
         lock (MappingLock)
         {
             if (SpeakerFormats.TryGetValue(speaker, out var format))
-                return (format.SampleRate, format.Channels);
+            {
+                sampleRate = format.SampleRate;
+                channels = format.Channels;
+                return true;
+            }
         }
 
-        return (16000, 1);
+        sampleRate = 0;
+        channels = 0;
+        return false;
+    }
+
+    private static void WarnUnknownFormat(Speaker speaker)
+    {
+        lock (MappingLock)
+        {
+            if (!UnknownFormatWarned.Add(speaker))
+                return;
+        }
+
+        ModLog.Warn($"[voice] no cached format for speaker '{speaker.name}'; dropping frames until voice info arrives");
+    }
+
+    private static void PruneDestroyedSpeakersLocked()
+    {
+        List<Speaker> dead = null;
+        foreach (var speaker in SpeakerFormats.Keys)
+        {
+            if (!speaker)
+            {
+                dead ??= [];
+                dead.Add(speaker);
+            }
+        }
+
+        if (dead == null)
+            return;
+
+        foreach (var speaker in dead)
+        {
+            SpeakerFormats.Remove(speaker);
+            UnknownFormatWarned.Remove(speaker);
+        }
     }
 
     private static void RecordSamplesAtCurrentTime(int actorNumber, float[] samples, int channels, int sampleRate)

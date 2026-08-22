@@ -9,7 +9,7 @@ namespace ReplayMod.IO;
 public static class ReplayReader
 {
     private const int MagicNumber = 0x52504C59;
-    private const int FormatVersion = 2;
+    private const int FormatVersion = 3;
 
     public static ReplayData Load(string path)
     {
@@ -123,6 +123,13 @@ public static class ReplayReader
                     Volume = reader.ReadSingle(),
                     IsLeftHand = reader.ReadBoolean()
                 };
+                break;
+            case ReplayEventType.CosmeticsChanged:
+                var count = reader.ReadInt32();
+                var items = new string[count];
+                for (var i = 0; i < count; i++)
+                    items[i] = reader.ReadString();
+                e.Payload = new CosmeticsData { Cosmetics = items };
                 break;
             case ReplayEventType.PlayerLeft:
                 break;

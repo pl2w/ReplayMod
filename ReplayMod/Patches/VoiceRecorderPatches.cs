@@ -16,6 +16,19 @@ internal static class VoiceRecorderPatches
         }
     }
 
+    [HarmonyLib.HarmonyPatch(typeof(Speaker), "OnRemoteVoiceInfo")]
+    private static class OnRemoteVoiceInfoPatch
+    {
+        [HarmonyLib.HarmonyPostfix]
+        private static void Postfix(Speaker __instance, RemoteVoiceLink stream)
+        {
+            if (stream == null)
+                return;
+
+            VoiceRecorder.SetSpeakerFormat(__instance, stream.Info.SamplingRate, stream.Info.Channels);
+        }
+    }
+
     [HarmonyLib.HarmonyPatch(typeof(Speaker), "AudioOutputStart")]
     private static class AudioOutputStartPatch
     {

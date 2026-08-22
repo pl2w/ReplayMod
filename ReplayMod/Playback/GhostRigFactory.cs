@@ -11,6 +11,7 @@ namespace ReplayMod.Playback;
 public static class GhostRigFactory
 {
     private static GameObject _template;
+    private static readonly List<VRRig> Pool = [];
 
     internal static bool IsSpawning { get; private set; }
     
@@ -40,34 +41,64 @@ public static class GhostRigFactory
             return null;
         }
 
-        IsSpawning = true;
-        GameObject instance;
-        try { instance = Object.Instantiate(_template); }
-        finally { IsSpawning = false; }
-
-        instance.name = $"GhostRig_{actorNumber}";
-
-        var rig = instance.GetComponent<VRRig>();
-        if (!rig)
+        var fresh = false;
+        VRRig rig = null;
+        while (Pool.Count > 0)
         {
-            ModLog.Error($"Instantiated ghost rig missing VRRig for actor={actorNumber}; destroying");
-            Object.Destroy(instance);
-            return null;
+            var candidate = Pool[^1];
+            Pool.RemoveAt(Pool.Count - 1);
+            if (candidate)
+            {
+                rig = candidate;
+                break;
+            }
         }
 
-        rig.enabled = false;
-        DisableComponentsByType(instance);
+        if (!rig)
+        {
+            IsSpawning = true;
+            GameObject instance;
+            try { instance = Object.Instantiate(_template); }
+            finally { IsSpawning = false; }
 
-        instance.SetActive(true);
-        
+            Object.DontDestroyOnLoad(instance);
+            fresh = true;
+
+            rig = instance.GetComponent<VRRig>();
+            if (!rig)
+            {
+                ModLog.Error($"Instantiated ghost rig missing VRRig for actor={actorNumber}; destroying");
+                Object.Destroy(instance);
+                return null;
+            }
+
+            rig.enabled = false;
+            DisableComponentsByType(instance);
+        }
+
+        rig.name = $"GhostRig_{actorNumber}";
+        rig.gameObject.SetActive(true);
+
         rig.bodyRenderer.SetDefaults();
         GorillaSkin.ShowActiveSkin(rig);
         rig.mainSkin.enabled = true;
-        
-        rig.GetComponent<XRaySkeleton>()?.OnBuildInitialize();
 
-        ModLog.Debug($"Spawned ghost rig actor={actorNumber}");
+        if (fresh)
+            rig.GetComponent<XRaySkeleton>()?.OnBuildInitialize();
+        else
+            GhostCosmetics.ClearVisualState(rig);
+
+        ModLog.Debug($"Spawned ghost rig actor={actorNumber} (fresh={fresh}, pooled={Pool.Count})");
         return rig;
+    }
+
+    public static void Release(VRRig rig)
+    {
+        if (!rig)
+            return;
+
+        rig.gameObject.SetActive(false);
+        Pool.Add(rig);
     }
 
     private static void EnsureTemplate()
@@ -121,6 +152,13 @@ public static class GhostRigFactory
 
     public static void Reset()
     {
+        foreach (var rig in Pool)
+        {
+            if (rig)
+                Object.Destroy(rig.gameObject);
+        }
+        Pool.Clear();
+
         if (_template != null)
             Object.Destroy(_template);
         _template = null;

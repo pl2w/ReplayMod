@@ -129,6 +129,14 @@
             <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/UnityEngine.AudioModule.dll</HintPath>
             <Private>false</Private>
         </Reference>
+        <Reference Include="Unity.Addressables">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/Unity.Addressables.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Unity.ResourceManager">
+            <HintPath>$(GorillaTagDir)/Gorilla Tag_Data/Managed/Unity.ResourceManager.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
     </ItemGroup>
 
     <Import Project="Directory.Build.local.props" Condition="Exists('Directory.Build.local.props')"/>

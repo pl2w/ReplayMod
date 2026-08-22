@@ -10,7 +10,7 @@ namespace ReplayMod.IO;
 public static class ReplayWriter
 {
     private const int MagicNumber = 0x52504C59; // "RPLY"
-    private const int FormatVersion = 2;
+    private const int FormatVersion = 3;
 
     public static readonly string ReplayFolder =
         Path.Combine(Paths.PluginPath, "ReplayMod", "Recordings");
@@ -114,6 +114,16 @@ public static class ReplayWriter
                 writer.Write(handTap.SoundIndex);
                 writer.Write(handTap.Volume);
                 writer.Write(handTap.IsLeftHand);
+                break;
+            case ReplayEventType.CosmeticsChanged:
+                var cosmetics = (CosmeticsData)e.Payload;
+                var items = cosmetics.Cosmetics;
+                writer.Write(items?.Length ?? 0);
+                if (items != null)
+                {
+                    foreach (var item in items)
+                        writer.Write(item ?? string.Empty);
+                }
                 break;
         }
     }
