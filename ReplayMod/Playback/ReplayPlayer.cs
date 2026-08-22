@@ -143,7 +143,6 @@ public class ReplayPlayer : MonoBehaviour
                 case ReplayEventType.MaterialChanged:
                     var matIndex = ((MaterialChangedData)e.Payload).MaterialIndex;
                     Logging.ModLog.Debug($"[mat] play actor={ghost.ActorNumber} apply material={matIndex} at t={eventTime:F3}");
-                    ghost.Rig.setMatIndex = matIndex;
                     ghost.Rig.ChangeMaterialLocal(matIndex);
                     break;
                 case ReplayEventType.NameChanged:
