@@ -97,6 +97,9 @@ public static class GhostRigFactory
         if (!rig)
             return;
 
+        GhostCosmetics.ClearVisualState(rig);
+        rig.SetNameTagText(string.Empty);
+
         rig.gameObject.SetActive(false);
         Pool.Add(rig);
     }

@@ -112,10 +112,21 @@ public class ReplayPlayer : MonoBehaviour
     {
         for (var i = _ghosts.Count - 1; i >= 0; i--)
         {
-            if (!_ghosts[i].HasLeft) continue;
-            Logging.ModLog.Info($"Ghost actor={_ghosts[i].ActorNumber} left at t={_ghosts[i].PlaybackClock:F3}; removing");
-            if (_ghosts[i].VoiceClip) Destroy(_ghosts[i].VoiceClip);
-            GhostRigFactory.Release(_ghosts[i].Rig);
+            var g = _ghosts[i];
+
+            bool finished;
+            if (g.Events.Count > 0)
+                finished = g.NextEventIndex >= g.Events.Count;
+            else
+                finished = g.VoiceClip == null || g.PlaybackClock >= g.VoiceClip.length;
+
+            if (!g.HasLeft && !finished)
+                continue;
+
+            Logging.ModLog.Info(
+                $"Ghost actor={g.ActorNumber} removed at t={g.PlaybackClock:F3} (HasLeft={g.HasLeft}, finished={finished})");
+            if (g.VoiceClip) Destroy(g.VoiceClip);
+            GhostRigFactory.Release(g.Rig);
             _ghosts.RemoveAt(i);
         }
     }
