@@ -23,4 +23,6 @@ public class GhostPlayer
     public double PreviousFrameTime;
     public double CurrentFrameTime;
     public int FramesSeen;
+
+    public bool HasLeft;
 }

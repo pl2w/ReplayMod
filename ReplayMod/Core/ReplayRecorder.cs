@@ -124,6 +124,18 @@ public static class ReplayRecorder
             MaterialIndex = (sbyte)newMaterialIndex
         });
     }
+    
+    public static void RecordPlayerLeft(int actorNumber, double timestamp)
+    {
+        EnsureBuffer(actorNumber, timestamp);
+        var deltaTime = ConsumeDeltaTime(actorNumber, timestamp);
+
+        Buffers[actorNumber].Add(new ReplayEvent
+        {
+            Type = ReplayEventType.PlayerLeft,
+            DeltaTime = deltaTime
+        });
+    }
 
     private static void EnsureBuffer(int actorNumber, double timestamp)
     {

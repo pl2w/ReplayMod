@@ -102,6 +102,8 @@ public static class ReplayReader
             case ReplayEventType.NameChanged:
                 e.Name = reader.ReadString();
                 break;
+            case ReplayEventType.PlayerLeft:
+                break;
             default:
                 throw new InvalidDataException($"Unknown replay event type {type} at player index, file may be corrupt or from an incompatible version");
         }

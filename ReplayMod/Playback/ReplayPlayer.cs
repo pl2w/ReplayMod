@@ -74,9 +74,9 @@ public class ReplayPlayer : MonoBehaviour
     {
         foreach (var ghost in _ghosts)
         {
-            if (ghost.VoiceClip != null)
+            if (ghost.VoiceClip)
                 Destroy(ghost.VoiceClip);
-            if (ghost.Rig != null)
+            if (ghost.Rig)
                 Destroy(ghost.Rig.gameObject);
         }
         _ghosts.Clear();
@@ -91,6 +91,19 @@ public class ReplayPlayer : MonoBehaviour
 
         foreach (var ghost in _ghosts)
             AdvanceGhost(ghost, dt);
+
+        RemoveDepartedGhosts();
+    }
+
+    private void RemoveDepartedGhosts()
+    {
+        for (var i = _ghosts.Count - 1; i >= 0; i--)
+        {
+            if (!_ghosts[i].HasLeft) continue;
+            if (_ghosts[i].VoiceClip) Destroy(_ghosts[i].VoiceClip);
+            if (_ghosts[i].Rig) Destroy(_ghosts[i].Rig.gameObject);
+            _ghosts.RemoveAt(i);
+        }
     }
 
     private void AdvanceGhost(GhostPlayer ghost, float dt)
@@ -121,6 +134,9 @@ public class ReplayPlayer : MonoBehaviour
                     break;
                 case ReplayEventType.NameChanged:
                     ghost.Rig.SetNameTagText(e.Name);
+                    break;
+                case ReplayEventType.PlayerLeft:
+                    ghost.HasLeft = true;
                     break;
             }
     
@@ -166,9 +182,6 @@ public class ReplayPlayer : MonoBehaviour
     
         var rig = ghost.Rig;
         
-        if (ghost.ActorNumber == 430)
-            ModLog.Debug($"t={t:F3} clock={ghost.PlaybackClock:F3} curT={ghost.CurrentFrameTime:F3} nextT={nextFrameTime:F3} pos={rig.transform.position}");
-    
         rig.transform.position = Vector3.Lerp(bodyPosA, bodyPosB, t);
         rig.transform.rotation = Quaternion.Lerp(bodyRotA, bodyRotB, t);
         rig.head.rigTarget.localRotation = Quaternion.Lerp(headRotA, headRotB, t);

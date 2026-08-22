@@ -31,6 +31,7 @@ public class ReplaySystem : ITickSystemPost
         }
 
         RoomSystem.PlayerJoinedEvent += OnPlayerJoined;
+        RoomSystem.PlayerLeftEvent += OnPlayerLeft;
     }
 
     public void StopRecording()
@@ -66,6 +67,22 @@ public class ReplaySystem : ITickSystemPost
         VoiceRecorder.BeginRecording(player.ActorNumber);
         TryBeginRecordingForPlayer(player);
     }
+    
+    private void OnPlayerLeft(NetPlayer player)
+    {
+        if (!_recordingActors.Contains(player.ActorNumber))
+            return;
+
+        ReplayRecorder.RecordPlayerLeft(player.ActorNumber, NetworkSystem.Instance.SimTime);
+
+        if (VRRigCache.Instance.TryGetVrrig(player, out var container))
+        {
+            ReplayRecorder.StopRecording(player.ActorNumber, container.Rig);
+        }
+
+        VoiceRecorder.StopRecording(player.ActorNumber);
+        _recordingActors.Remove(player.ActorNumber);
+    }
 
     private void TryBeginRecordingForPlayer(NetPlayer player)
     {
@@ -77,6 +94,7 @@ public class ReplaySystem : ITickSystemPost
 
         ReplayRecorder.BeginRecording(player.ActorNumber, container.Rig, NetworkSystem.Instance.SimTime);
         VoiceRecorder.BeginRecording(player.ActorNumber, container.Rig);
+        
         _recordingActors.Add(player.ActorNumber);
     }
 

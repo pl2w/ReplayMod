@@ -37,7 +37,7 @@ public class Plugin : BaseUnityPlugin
     private static void PlayLatestReplay()
     {
         var replayPlayer = ReplayMod.Plugin.ReplayPlayer;
-        if (replayPlayer == null)
+        if (!replayPlayer)
             return;
 
         if (!Directory.Exists(ReplayWriter.ReplayFolder))
