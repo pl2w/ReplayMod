@@ -20,7 +20,8 @@ public static class GhostRigFactory
         typeof(VRRigReliableState),
         typeof(NetworkView),
         typeof(PhotonView),
-        typeof(PhotonVoiceView)
+        typeof(PhotonVoiceView),
+        typeof(GRPlayer)
     ];
 
     public static VRRig Spawn(int actorNumber)

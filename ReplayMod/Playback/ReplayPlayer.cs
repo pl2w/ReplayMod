@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 using ReplayMod.IO;
-using ReplayMod.Logging;
 using ReplayMod.Models;
 
 namespace ReplayMod.Playback;
@@ -10,6 +9,8 @@ public class ReplayPlayer : MonoBehaviour
 {
     private readonly List<GhostPlayer> _ghosts = [];
     private readonly float _playbackSpeed = 1f;
+    
+    private static readonly float[] VoiceSampleBuffer = new float[256];
 
     private bool _isPlaying;
 
@@ -53,6 +54,9 @@ public class ReplayPlayer : MonoBehaviour
         var voiceSource = rig.gameObject.AddComponent<AudioSource>();
         voiceSource.playOnAwake = false;
         voiceSource.spatialBlend = 1f;
+        
+        rig.remoteUseReplacementVoice = true;
+        rig.IsMicEnabled = true;
 
         var ghost = new GhostPlayer
         {
@@ -110,6 +114,7 @@ public class ReplayPlayer : MonoBehaviour
     {
         ghost.PlaybackClock += dt;
         AdvanceVoice(ghost);
+        UpdateSpeakingLoudness(ghost);
         
         while (ghost.NextEventIndex < ghost.Events.Count &&
                ghost.AbsoluteTimes[ghost.NextEventIndex] <= ghost.PlaybackClock)
@@ -201,12 +206,34 @@ public class ReplayPlayer : MonoBehaviour
 
     private static void AdvanceVoice(GhostPlayer ghost)
     {
-        if (ghost.VoiceClip == null || ghost.VoiceClipScheduled)
+        if (!ghost.VoiceClip || ghost.VoiceClipScheduled)
             return;
 
         ghost.VoiceSource.clip = ghost.VoiceClip;
         ghost.VoiceSource.Play();
         ghost.VoiceClipScheduled = true;
+    }
+    
+    private static void UpdateSpeakingLoudness(GhostPlayer ghost)
+    {
+        if (!ghost.Rig)
+            return;
+
+        ghost.Rig.SpeakingLoudness = ComputeLoudness(ghost.VoiceSource);
+    }
+
+    private static float ComputeLoudness(AudioSource source)
+    {
+        if (!source || !source.isPlaying)
+            return 0f;
+
+        source.GetOutputData(VoiceSampleBuffer, 0);
+
+        var sum = 0f;
+        for (var i = 0; i < VoiceSampleBuffer.Length; i++)
+            sum += Mathf.Abs(VoiceSampleBuffer[i]);
+
+        return sum / VoiceSampleBuffer.Length;
     }
 
     private static AudioClip BuildVoiceClip(int actorNumber, List<VoiceChunk> chunks)
