@@ -9,7 +9,6 @@ public class GhostPlayer
     public int ActorNumber;
     public List<ReplayEvent> Events;
     public double[] AbsoluteTimes;
-    public List<VoiceChunk> VoiceChunks;
     public VRRig Rig;
     public AudioSource VoiceSource;
     public AudioClip VoiceClip;
@@ -18,9 +17,7 @@ public class GhostPlayer
     public int NextEventIndex;
     public double PlaybackClock;
 
-    public FrameData PreviousFrame;
     public FrameData CurrentFrame;
-    public double PreviousFrameTime;
     public double CurrentFrameTime;
     public int FramesSeen;
 

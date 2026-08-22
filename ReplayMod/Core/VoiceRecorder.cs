@@ -27,8 +27,12 @@ public static class VoiceRecorder
     public static void Reset()
     {
         StopAll();
-        lock (Buffers) { Buffers.Clear(); }
-        LastTimestamps.Clear();
+
+        lock (Buffers)
+        {
+            Buffers.Clear();
+            LastTimestamps.Clear();
+        }
         lock (MappingLock)
         {
             ActiveActors.Clear();

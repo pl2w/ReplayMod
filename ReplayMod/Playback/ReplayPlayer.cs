@@ -69,7 +69,6 @@ public class ReplayPlayer : MonoBehaviour
             ActorNumber = actorNumber,
             Events = events,
             AbsoluteTimes = BuildAbsoluteTimes(events),
-            VoiceChunks = voiceChunks,
             VoiceClip = BuildVoiceClip(actorNumber, voiceChunks),
             Rig = rig,
             VoiceSource = voiceSource,
@@ -136,9 +135,7 @@ public class ReplayPlayer : MonoBehaviour
             switch (e.Type)
             {
                 case ReplayEventType.Frame:
-                    ghost.PreviousFrame = ghost.CurrentFrame;
                     ghost.CurrentFrame = (FrameData)e.Payload;
-                    ghost.PreviousFrameTime = ghost.CurrentFrameTime;
                     ghost.CurrentFrameTime = eventTime;
                     ghost.FramesSeen++;
                     break;
@@ -378,18 +375,6 @@ public class ReplayPlayer : MonoBehaviour
                 times[i] -= offset;
         }
 
-        return times;
-    }
-
-    private static double[] BuildAbsoluteTimes(List<VoiceChunk> chunks)
-    {
-        var times = new double[chunks.Count];
-        var sum = 0.0;
-        for (var i = 0; i < chunks.Count; i++)
-        {
-            sum += chunks[i].DeltaTime;
-            times[i] = sum;
-        }
         return times;
     }
 }

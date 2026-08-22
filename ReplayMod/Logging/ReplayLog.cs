@@ -13,26 +13,26 @@ public static class ReplayLog
     private static StreamWriter EnsureWriter()
     {
         if (_writer != null)
-            lock (Sync)
-            {
-                return _writer;
-            }
-
-        var dir = Path.Combine(Paths.PluginPath, "ReplayMod", "Logs");
-        Directory.CreateDirectory(dir);
-
-        var stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-        _path = Path.Combine(dir, $"replay_{stamp}.log");
+            return _writer;
 
         lock (Sync)
         {
+            if (_writer != null)
+                return _writer;
+
+            var dir = Path.Combine(Paths.PluginPath, "ReplayMod", "Logs");
+            Directory.CreateDirectory(dir);
+
+            var stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+            _path = Path.Combine(dir, $"replay_{stamp}.log");
+
             _writer = new StreamWriter(_path, append: false)
             {
                 AutoFlush = true
             };
-        }
 
-        return _writer;
+            return _writer;
+        }
     }
 
     public static string LogPath

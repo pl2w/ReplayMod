@@ -82,6 +82,9 @@ internal static class GhostCosmetics
     public static void Reset()
     {
         Desired.Clear();
+        RegisteredRigs.Clear();
+        AppliedRigs.Clear();
+        FailedRigs.Clear();
         _loggedDeferred = false;
     }
 

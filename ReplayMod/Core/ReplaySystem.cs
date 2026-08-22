@@ -49,6 +49,7 @@ public class ReplaySystem : ITickSystemPost
 
         TickSystem<object>.RemovePostTickCallback(this);
         RoomSystem.PlayerJoinedEvent -= OnPlayerJoined;
+        RoomSystem.PlayerLeftEvent -= OnPlayerLeft;
 
         foreach (var (_, recorder) in _recorders)
             recorder.Dispose();
@@ -74,7 +75,7 @@ public class ReplaySystem : ITickSystemPost
         Logging.ModLog.Info(
             $"Recording stopped. players={_recorders.Count} voice={voiceBuffers.Count} -> {path}");
     }
-
+    
     private Dictionary<int, List<ReplayEvent>> SnapshotPoseStreams()
     {
         var result = new Dictionary<int, List<ReplayEvent>>(_recorders.Count);
