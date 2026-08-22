@@ -24,6 +24,13 @@ public static class GhostRigFactory
         typeof(GRPlayer)
     ];
 
+    private static readonly HashSet<Type> LckCameraComponentTypes =
+    [
+        typeof(LckBodyCameraSpawner),
+        typeof(LckSocialCamera),
+        typeof(LCKSocialCameraFollower)
+    ];
+
     public static VRRig Spawn(int actorNumber)
     {
         EnsureTemplate();
@@ -99,6 +106,16 @@ public static class GhostRigFactory
         {
             if (b && TypesToDisable.Contains(b.GetType()))
                 b.enabled = false;
+        }
+
+        foreach (var b in behaviours)
+        {
+            if (!b || !LckCameraComponentTypes.Contains(b.GetType()))
+                continue;
+
+            var go = b.gameObject;
+            go.SetActive(false);
+            Object.Destroy(go);
         }
     }
 
