@@ -27,7 +27,6 @@ public static class ReplayWriter
         using var fileStream = File.Create(path);
         using var gzipStream = new GZipStream(fileStream, CompressionLevel.Optimal);
         using var writer = new BinaryWriter(gzipStream);
-
         writer.Write(MagicNumber);
         writer.Write(FormatVersion);
         writer.Write(DateTime.UtcNow.ToBinary());
@@ -64,6 +63,7 @@ public static class ReplayWriter
                 WriteVoiceChunk(writer, chunk);
         }
 
+        Logging.ModLog.Info($"Saved replay to {path}");
         return path;
     }
 

@@ -36,6 +36,7 @@ public static class VoiceRecorder
         }
         _startDspTime = AudioSettings.dspTime;
         _isRecording = true;
+        ModLog.Debug("VoiceRecorder reset");
     }
 
     public static void BeginRecording(int actorNumber, VRRig rig)
@@ -46,11 +47,14 @@ public static class VoiceRecorder
 
     public static void BeginRecording(int actorNumber)
     {
-        EnsureBuffer(actorNumber, 0);
+        var added = false;
         lock (MappingLock)
         {
-            ActiveActors.Add(actorNumber);
+            added = ActiveActors.Add(actorNumber);
         }
+        EnsureBuffer(actorNumber, 0);
+        if (added)
+            ModLog.Debug($"VoiceRecorder begin actor={actorNumber}");
     }
 
     public static void RefreshSources(int actorNumber, VRRig rig)
@@ -92,6 +96,7 @@ public static class VoiceRecorder
             ActiveActors.Remove(actorNumber);
         }
         RemoveSpeakerForActor(actorNumber);
+        ModLog.Debug($"VoiceRecorder stop actor={actorNumber}");
     }
 
     private static void RemoveSpeakerForActor(int actorNumber)
@@ -119,6 +124,7 @@ public static class VoiceRecorder
             SpeakerActorNumbers.Clear();
         }
         _isRecording = false;
+        ModLog.Debug("VoiceRecorder stopped all");
     }
 
     public static Dictionary<int, List<VoiceChunk>> SnapshotBuffers()
@@ -174,6 +180,7 @@ public static class VoiceRecorder
         {
             SpeakerFormats[speaker] = new VoiceFormat(sampleRate, channels);
         }
+        ModLog.Debug($"speaker={speaker.name} format {sampleRate}Hz/{channels}ch");
     }
 
     private static (int SampleRate, int Channels) GetFrameFormat(Speaker speaker)

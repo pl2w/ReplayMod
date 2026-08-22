@@ -5,199 +5,134 @@ using UnityEngine;
 
 namespace ReplayMod.Core;
 
-public static class ReplayRecorder
+public sealed class ReplayRecorder
 {
-    public static readonly Dictionary<int, List<ReplayEvent>> Buffers = new();
-    private static readonly Dictionary<int, double> LastTimestamps = new();
+    private readonly int _actorNumber;
+    private readonly VRRig _rig;
+    private readonly Action<Color> _colorHandler;
+    private readonly Action<int, int> _materialHandler;
+    private readonly Action _nameHandler;
 
-    private static readonly Dictionary<int, Action<Color>> ColorHandlers = new();
-    private static readonly Dictionary<int, Action<int, int>> MaterialHandlers = new();
-    private static readonly Dictionary<int, Action> NameHandlers = new();
-    
-    public static double CurrentTimestamp { get; set; }
-    
-    
-    public static void BeginRecording(int actorNumber, VRRig rig, double timestamp)
+    private double _lastTimestamp;
+    private sbyte _lastSampledMat;
+
+    public double CurrentTimestamp { get; set; }
+
+    public List<ReplayEvent> Events { get; } = [];
+
+    public ReplayRecorder(int actorNumber, VRRig rig, double timestamp)
     {
-        CurrentTimestamp = timestamp;
-        
-        if (!Buffers.ContainsKey(actorNumber))
-        {
-            Buffers[actorNumber] = [];
-            LastTimestamps[actorNumber] = timestamp;
-        }
-        
-        rig.OnColorInitialized(color => RecordColorChange(actorNumber, color, GetCurrentTimestamp()));
-        RecordNameChange(actorNumber, rig.playerNameVisible, timestamp);
-        RecordMaterialChange(actorNumber, rig.setMatIndex, timestamp);
-        
-        Action<Color> colorHandler = color =>
-            RecordColorChange(actorNumber, color, GetCurrentTimestamp());
-        rig.OnColorChanged += colorHandler;
-        ColorHandlers[actorNumber] = colorHandler;
+        _actorNumber = actorNumber;
+        _rig = rig;
+        _lastTimestamp = timestamp;
 
-        Action<int, int> materialHandler = (oldIdx, newIdx) =>
-            RecordMaterialChange(actorNumber, newIdx, GetCurrentTimestamp());
-        rig.OnMaterialIndexChanged += materialHandler;
-        MaterialHandlers[actorNumber] = materialHandler;
-        
-        Action nameHandler = () =>
-            RecordNameChange(actorNumber, rig.playerNameVisible, GetCurrentTimestamp());
-        rig.OnPlayerNameVisibleChanged += nameHandler;
-        NameHandlers[actorNumber] = nameHandler;
-    }
-
-    public static void StopRecording(int actorNumber, VRRig rig)
-    {
-        if (ColorHandlers.TryGetValue(actorNumber, out var colorHandler))
-        {
-            rig.OnColorChanged -= colorHandler;
-            ColorHandlers.Remove(actorNumber);
-        }
-        if (MaterialHandlers.TryGetValue(actorNumber, out var materialHandler))
-        {
-            rig.OnMaterialIndexChanged -= materialHandler;
-            MaterialHandlers.Remove(actorNumber);
-        }
-        if (NameHandlers.TryGetValue(actorNumber, out var nameHandler))
-        {
-            rig.OnPlayerNameVisibleChanged -= nameHandler;
-            NameHandlers.Remove(actorNumber);
-        }
-    }
-
-    public static void RecordFrame(int actorNumber, VRRig rig, double timestamp)
-    {
-        EnsureBuffer(actorNumber, timestamp);
-        var deltaTime = ConsumeDeltaTime(actorNumber, timestamp);
-
-        Buffers[actorNumber].Add(new ReplayEvent
-        {
-            Type = ReplayEventType.Frame,
-            DeltaTime = deltaTime,
-            Payload = new FrameData
+        _colorHandler = color =>
+            Add(ReplayEventType.ColorChanged, new ColorChangedData
             {
-                BodyPos = BitPackUtils.PackWorldPosForNetwork(rig.transform.position),
-                BodyRot = BitPackUtils.PackQuaternionForNetwork(rig.transform.rotation),
-                HeadRot = BitPackUtils.PackQuaternionForNetwork(rig.head.rigTarget.localRotation),
-                LeftHandLong = BitPackUtils.PackHandPosRotForNetwork(
-                    rig.leftHand.rigTarget.localPosition, rig.leftHand.rigTarget.localRotation),
-                RightHandLong = BitPackUtils.PackHandPosRotForNetwork(
-                    rig.rightHand.rigTarget.localPosition, rig.rightHand.rigTarget.localRotation),
-                HandSync = rig.handSync
-            }
-        });
-    }
+                Color = BitPackUtils.PackColorForNetwork(color)
+            }, CurrentTimestamp);
 
-    private static void RecordColorChange(int actorNumber, Color color, double timestamp)
-    {
-        EnsureBuffer(actorNumber, timestamp);
-        var deltaTime = ConsumeDeltaTime(actorNumber, timestamp);
-
-        Buffers[actorNumber].Add(new ReplayEvent
+        _materialHandler = (oldIndex, newIndex) =>
         {
-            Type = ReplayEventType.ColorChanged,
-            DeltaTime = deltaTime,
-            Payload = new ColorChangedData { Color = BitPackUtils.PackColorForNetwork(color) }
-        });
-    }
-    
-    private static void RecordNameChange(int actorNumber, string name, double timestamp)
-    {
-        EnsureBuffer(actorNumber, timestamp);
-        var deltaTime = ConsumeDeltaTime(actorNumber, timestamp);
-
-        Buffers[actorNumber].Add(new ReplayEvent
-        {
-            Type = ReplayEventType.NameChanged,
-            DeltaTime = deltaTime,
-            Payload = new NameChangedData { Name = name }
-        });
-    }
-
-    private static void RecordMaterialChange(int actorNumber, int newMaterialIndex, double timestamp)
-    {
-        EnsureBuffer(actorNumber, timestamp);
-        var deltaTime = ConsumeDeltaTime(actorNumber, timestamp);
-
-        Buffers[actorNumber].Add(new ReplayEvent
-        {
-            Type = ReplayEventType.MaterialChanged,
-            DeltaTime = deltaTime,
-            Payload = new MaterialChangedData { MaterialIndex = (sbyte)newMaterialIndex }
-        });
-    }
-    
-    public static void RecordPlayerLeft(int actorNumber, double timestamp)
-    {
-        EnsureBuffer(actorNumber, timestamp);
-        var deltaTime = ConsumeDeltaTime(actorNumber, timestamp);
-
-        Buffers[actorNumber].Add(new ReplayEvent
-        {
-            Type = ReplayEventType.PlayerLeft,
-            DeltaTime = deltaTime
-        });
-    }
-    
-    public static void RecordSoundEffect(int actorNumber, int soundIndex, float volume, bool stopCurrentAudio, double timestamp)
-    {
-        EnsureBuffer(actorNumber, timestamp);
-        var deltaTime = ConsumeDeltaTime(actorNumber, timestamp);
-        Buffers[actorNumber].Add(new ReplayEvent
-        {
-            Type = ReplayEventType.SoundEffect,
-            DeltaTime = deltaTime,
-            Payload = new SoundEffectData
+            Logging.ModLog.Debug(
+                $"[mat] actor={actorNumber} OnMaterialIndexChanged {oldIndex}->{newIndex} at t={CurrentTimestamp:F3} (rig.setMatIndex={rig.setMatIndex})");
+            Add(ReplayEventType.MaterialChanged, new MaterialChangedData
             {
-                SoundIndex = soundIndex,
-                Volume = volume,
-                StopCurrentAudio = stopCurrentAudio
-            }
-        });
-    }
+                MaterialIndex = (sbyte)newIndex
+            }, CurrentTimestamp);
+        };
 
-    public static void RecordHandTap(int actorNumber, int soundIndex, float volume, bool isLeftHand, double timestamp)
-    {
-        EnsureBuffer(actorNumber, timestamp);
-        var deltaTime = ConsumeDeltaTime(actorNumber, timestamp);
-        Buffers[actorNumber].Add(new ReplayEvent
-        {
-            Type = ReplayEventType.HandTap,
-            DeltaTime = deltaTime,
-            Payload = new HandTapData
+        _nameHandler = () =>
+            Add(ReplayEventType.NameChanged, new NameChangedData
             {
-                SoundIndex = soundIndex,
-                Volume = volume,
-                IsLeftHand = isLeftHand
-            }
-        });
+                Name = rig.playerNameVisible
+            }, CurrentTimestamp);
+
+        rig.OnColorInitialized(color => _colorHandler(color));
+        Add(ReplayEventType.NameChanged, new NameChangedData { Name = rig.playerNameVisible }, timestamp);
+        var initialMat = (sbyte)rig.setMatIndex;
+        Logging.ModLog.Info($"[mat] actor={_actorNumber} initial setMatIndex={initialMat} at t={timestamp:F3}");
+        Add(ReplayEventType.MaterialChanged, new MaterialChangedData { MaterialIndex = initialMat }, timestamp);
+
+        rig.OnColorChanged += _colorHandler;
+        rig.OnMaterialIndexChanged += _materialHandler;
+        rig.OnPlayerNameVisibleChanged += _nameHandler;
     }
 
-    private static void EnsureBuffer(int actorNumber, double timestamp)
+    public void RecordFrame(double timestamp)
     {
-        if (!Buffers.ContainsKey(actorNumber))
+        var sampledMat = (sbyte)_rig.setMatIndex;
+        if (sampledMat != _lastSampledMat)
         {
-            Buffers[actorNumber] = new List<ReplayEvent>();
-            LastTimestamps[actorNumber] = timestamp;
+            _lastSampledMat = sampledMat;
+            Logging.ModLog.Debug($"[mat] actor={_actorNumber} frame sample setMatIndex={sampledMat} at t={timestamp:F3}");
         }
+
+        Add(ReplayEventType.Frame, new FrameData
+        {
+            BodyPos = BitPackUtils.PackWorldPosForNetwork(_rig.transform.position),
+            BodyRot = BitPackUtils.PackQuaternionForNetwork(_rig.transform.rotation),
+            HeadRot = BitPackUtils.PackQuaternionForNetwork(_rig.head.rigTarget.localRotation),
+            LeftHandLong = BitPackUtils.PackHandPosRotForNetwork(
+                _rig.leftHand.rigTarget.localPosition, _rig.leftHand.rigTarget.localRotation),
+            RightHandLong = BitPackUtils.PackHandPosRotForNetwork(
+                _rig.rightHand.rigTarget.localPosition, _rig.rightHand.rigTarget.localRotation),
+            HandSync = _rig.handSync
+        }, timestamp);
     }
 
-    private static float ConsumeDeltaTime(int actorNumber, double timestamp)
+    public void RecordPlayerLeft(double timestamp)
     {
-        var delta = (float)(timestamp - LastTimestamps[actorNumber]);
-        LastTimestamps[actorNumber] = timestamp;
+        Logging.ModLog.Info($"actor={_actorNumber} PlayerLeft event at t={timestamp:F3}");
+        Add(ReplayEventType.PlayerLeft, null, timestamp);
+    }
+
+    public void RecordSoundEffect(int soundIndex, float volume, bool stopCurrentAudio, double timestamp)
+    {
+        Logging.ModLog.Debug(
+            $"[sfx] actor={_actorNumber} sound={soundIndex} vol={volume:F2} stop={stopCurrentAudio} at t={timestamp:F3}");
+        Add(ReplayEventType.SoundEffect, new SoundEffectData
+        {
+            SoundIndex = soundIndex,
+            Volume = volume,
+            StopCurrentAudio = stopCurrentAudio
+        }, timestamp);
+    }
+
+    public void RecordHandTap(int soundIndex, float volume, bool isLeftHand, double timestamp)
+    {
+        Logging.ModLog.Debug(
+            $"[tap] actor={_actorNumber} sound={soundIndex} vol={volume:F2} left={isLeftHand} at t={timestamp:F3}");
+        Add(ReplayEventType.HandTap, new HandTapData
+        {
+            SoundIndex = soundIndex,
+            Volume = volume,
+            IsLeftHand = isLeftHand
+        }, timestamp);
+    }
+
+    public void Dispose()
+    {
+        Logging.ModLog.Debug($"actor={_actorNumber} recorder disposed ({Events.Count} events)");
+        _rig.OnColorChanged -= _colorHandler;
+        _rig.OnMaterialIndexChanged -= _materialHandler;
+        _rig.OnPlayerNameVisibleChanged -= _nameHandler;
+    }
+
+    private void Add(ReplayEventType type, object payload, double timestamp)
+    {
+        Events.Add(new ReplayEvent
+        {
+            Type = type,
+            DeltaTime = ConsumeDeltaTime(timestamp),
+            Payload = payload
+        });
+    }
+
+    private float ConsumeDeltaTime(double timestamp)
+    {
+        var delta = (float)(timestamp - _lastTimestamp);
+        _lastTimestamp = timestamp;
         return delta;
-    }
-
-    private static double GetCurrentTimestamp() => CurrentTimestamp;
-
-    public static void Reset()
-    {
-        Buffers.Clear();
-        LastTimestamps.Clear();
-        ColorHandlers.Clear();
-        MaterialHandlers.Clear();
-        NameHandlers.Clear();
     }
 }

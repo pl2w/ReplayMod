@@ -18,6 +18,7 @@ public class ReplayPlayer : MonoBehaviour
     {
         Stop();
 
+        Logging.ModLog.Info($"Loading replay from {path}");
         var replay = ReplayReader.Load(path);
 
         foreach (var (actorNumber, events) in replay.PoseStreams)
@@ -39,6 +40,7 @@ public class ReplayPlayer : MonoBehaviour
         }
 
         _isPlaying = true;
+        Logging.ModLog.Info($"Playback started with {_ghosts.Count} ghosts");
     }
 
     private void AddGhost(
@@ -72,10 +74,12 @@ public class ReplayPlayer : MonoBehaviour
         };
 
         _ghosts.Add(ghost);
+        Logging.ModLog.Info($"Spawned ghost actor={actorNumber} events={events.Count} voice={voiceChunks.Count}");
     }
 
     public void Stop()
     {
+        Logging.ModLog.Info($"Stopping playback ({_ghosts.Count} ghosts)");
         foreach (var ghost in _ghosts)
         {
             if (ghost.VoiceClip)
@@ -104,6 +108,7 @@ public class ReplayPlayer : MonoBehaviour
         for (var i = _ghosts.Count - 1; i >= 0; i--)
         {
             if (!_ghosts[i].HasLeft) continue;
+            Logging.ModLog.Info($"Ghost actor={_ghosts[i].ActorNumber} left at t={_ghosts[i].PlaybackClock:F3}; removing");
             if (_ghosts[i].VoiceClip) Destroy(_ghosts[i].VoiceClip);
             if (_ghosts[i].Rig) Destroy(_ghosts[i].Rig.gameObject);
             _ghosts.RemoveAt(i);
@@ -136,7 +141,10 @@ public class ReplayPlayer : MonoBehaviour
                         BitPackUtils.UnpackColorFromNetwork(((ColorChangedData)e.Payload).Color));
                     break;
                 case ReplayEventType.MaterialChanged:
-                    ghost.Rig.ChangeMaterialLocal(((MaterialChangedData)e.Payload).MaterialIndex);
+                    var matIndex = ((MaterialChangedData)e.Payload).MaterialIndex;
+                    Logging.ModLog.Debug($"[mat] play actor={ghost.ActorNumber} apply material={matIndex} at t={eventTime:F3}");
+                    ghost.Rig.setMatIndex = matIndex;
+                    ghost.Rig.ChangeMaterialLocal(matIndex);
                     break;
                 case ReplayEventType.NameChanged:
                     ghost.Rig.SetNameTagText(((NameChangedData)e.Payload).Name);

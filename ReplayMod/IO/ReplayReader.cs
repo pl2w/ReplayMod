@@ -29,6 +29,7 @@ public static class ReplayReader
         var replay = new ReplayData();
 
         var playerCount = reader.ReadInt32();
+        Logging.ModLog.Info($"Loading replay {path}: version={version} recorded={recordedAt:u} poseStreams={playerCount}");
 
         for (var p = 0; p < playerCount; p++)
         {
@@ -40,6 +41,7 @@ public static class ReplayReader
                 events.Add(ReadEvent(reader));
 
             replay.PoseStreams[actorNumber] = events;
+            Logging.ModLog.Debug($"  actor={actorNumber}: {eventCount} pose events");
         }
 
         if (version < 2)
@@ -56,6 +58,7 @@ public static class ReplayReader
                 chunks.Add(ReadVoiceChunk(reader));
 
             replay.VoiceStreams[actorNumber] = chunks;
+            Logging.ModLog.Debug($"  actor={actorNumber}: {chunkCount} voice chunks");
         }
 
         return replay;

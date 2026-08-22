@@ -24,6 +24,13 @@ public class Plugin : BaseUnityPlugin
 
         ReplaySystem = new ReplaySystem();
         ReplayPlayer = gameObject.AddComponent<ReplayPlayer>();
+
+        ModLog.Info($"ReplayMod v{PluginInfo.Version} initialized. Log: {Logging.ReplayLog.LogPath}");
+    }
+
+    private void OnDisable()
+    {
+        Logging.ReplayLog.Close();
     }
 }
 

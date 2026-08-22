@@ -1,5 +1,4 @@
 using HarmonyLib;
-using ReplayMod.Core;
 
 namespace ReplayMod.Patches;
 
@@ -8,8 +7,8 @@ static class SoundEffectPatch
 {
     static void Postfix(RoomSystem.SoundEffect sound, NetPlayer target)
     {
-        if (Plugin.ReplaySystem == null || !Plugin.ReplaySystem.IsRecording) return;
-        ReplayRecorder.RecordSoundEffect(
+        if (Plugin.ReplaySystem is not { IsRecording: true } system) return;
+        system.RecordSoundEffect(
             target?.ActorNumber ?? -1,
             sound.id, sound.volume, sound.stopCurrentAudio,
             NetworkSystem.Instance.SimTime);

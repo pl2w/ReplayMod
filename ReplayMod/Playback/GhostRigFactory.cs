@@ -27,7 +27,11 @@ public static class GhostRigFactory
     public static VRRig Spawn(int actorNumber)
     {
         EnsureTemplate();
-        if (!_template) return null;
+        if (!_template)
+        {
+            ModLog.Error($"No ghost rig template available; cannot spawn actor={actorNumber}");
+            return null;
+        }
 
         IsSpawning = true;
         GameObject instance;
@@ -39,6 +43,7 @@ public static class GhostRigFactory
         var rig = instance.GetComponent<VRRig>();
         if (!rig)
         {
+            ModLog.Error($"Instantiated ghost rig missing VRRig for actor={actorNumber}; destroying");
             Object.Destroy(instance);
             return null;
         }
@@ -53,7 +58,8 @@ public static class GhostRigFactory
         rig.mainSkin.enabled = true;
         
         rig.GetComponent<XRaySkeleton>()?.OnBuildInitialize();
-        
+
+        ModLog.Debug($"Spawned ghost rig actor={actorNumber}");
         return rig;
     }
 
@@ -83,6 +89,7 @@ public static class GhostRigFactory
         Object.DontDestroyOnLoad(_template);
 
         DisableComponentsByType(_template);
+        ModLog.Info("Ghost rig template created");
     }
 
     private static void DisableComponentsByType(GameObject root)
@@ -100,5 +107,6 @@ public static class GhostRigFactory
         if (_template != null)
             Object.Destroy(_template);
         _template = null;
+        ModLog.Debug("Ghost rig template reset");
     }
 }
