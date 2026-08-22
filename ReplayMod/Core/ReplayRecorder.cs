@@ -75,14 +75,17 @@ public static class ReplayRecorder
         {
             Type = ReplayEventType.Frame,
             DeltaTime = deltaTime,
-            BodyPos = BitPackUtils.PackWorldPosForNetwork(rig.transform.position),
-            BodyRot = BitPackUtils.PackQuaternionForNetwork(rig.transform.rotation),
-            HeadRot = BitPackUtils.PackQuaternionForNetwork(rig.head.rigTarget.localRotation),
-            LeftHandLong = BitPackUtils.PackHandPosRotForNetwork(
-                rig.leftHand.rigTarget.localPosition, rig.leftHand.rigTarget.localRotation),
-            RightHandLong = BitPackUtils.PackHandPosRotForNetwork(
-                rig.rightHand.rigTarget.localPosition, rig.rightHand.rigTarget.localRotation),
-            HandSync = rig.handSync
+            Payload = new FrameData
+            {
+                BodyPos = BitPackUtils.PackWorldPosForNetwork(rig.transform.position),
+                BodyRot = BitPackUtils.PackQuaternionForNetwork(rig.transform.rotation),
+                HeadRot = BitPackUtils.PackQuaternionForNetwork(rig.head.rigTarget.localRotation),
+                LeftHandLong = BitPackUtils.PackHandPosRotForNetwork(
+                    rig.leftHand.rigTarget.localPosition, rig.leftHand.rigTarget.localRotation),
+                RightHandLong = BitPackUtils.PackHandPosRotForNetwork(
+                    rig.rightHand.rigTarget.localPosition, rig.rightHand.rigTarget.localRotation),
+                HandSync = rig.handSync
+            }
         });
     }
 
@@ -95,7 +98,7 @@ public static class ReplayRecorder
         {
             Type = ReplayEventType.ColorChanged,
             DeltaTime = deltaTime,
-            Color = BitPackUtils.PackColorForNetwork(color)
+            Payload = new ColorChangedData { Color = BitPackUtils.PackColorForNetwork(color) }
         });
     }
     
@@ -108,7 +111,7 @@ public static class ReplayRecorder
         {
             Type = ReplayEventType.NameChanged,
             DeltaTime = deltaTime,
-            Name = name
+            Payload = new NameChangedData { Name = name }
         });
     }
 
@@ -121,7 +124,7 @@ public static class ReplayRecorder
         {
             Type = ReplayEventType.MaterialChanged,
             DeltaTime = deltaTime,
-            MaterialIndex = (sbyte)newMaterialIndex
+            Payload = new MaterialChangedData { MaterialIndex = (sbyte)newMaterialIndex }
         });
     }
     
@@ -134,6 +137,40 @@ public static class ReplayRecorder
         {
             Type = ReplayEventType.PlayerLeft,
             DeltaTime = deltaTime
+        });
+    }
+    
+    public static void RecordSoundEffect(int actorNumber, int soundIndex, float volume, bool stopCurrentAudio, double timestamp)
+    {
+        EnsureBuffer(actorNumber, timestamp);
+        var deltaTime = ConsumeDeltaTime(actorNumber, timestamp);
+        Buffers[actorNumber].Add(new ReplayEvent
+        {
+            Type = ReplayEventType.SoundEffect,
+            DeltaTime = deltaTime,
+            Payload = new SoundEffectData
+            {
+                SoundIndex = soundIndex,
+                Volume = volume,
+                StopCurrentAudio = stopCurrentAudio
+            }
+        });
+    }
+
+    public static void RecordHandTap(int actorNumber, int soundIndex, float volume, bool isLeftHand, double timestamp)
+    {
+        EnsureBuffer(actorNumber, timestamp);
+        var deltaTime = ConsumeDeltaTime(actorNumber, timestamp);
+        Buffers[actorNumber].Add(new ReplayEvent
+        {
+            Type = ReplayEventType.HandTap,
+            DeltaTime = deltaTime,
+            Payload = new HandTapData
+            {
+                SoundIndex = soundIndex,
+                Volume = volume,
+                IsLeftHand = isLeftHand
+            }
         });
     }
 

@@ -86,21 +86,34 @@ public static class ReplayWriter
         switch (e.Type)
         {
             case ReplayEventType.Frame:
-                writer.Write(e.BodyPos);
-                writer.Write(e.BodyRot);
-                writer.Write(e.HeadRot);
-                writer.Write(e.LeftHandLong);
-                writer.Write(e.RightHandLong);
-                writer.Write(e.HandSync);
+                var frame = (FrameData)e.Payload;
+                writer.Write(frame.BodyPos);
+                writer.Write(frame.BodyRot);
+                writer.Write(frame.HeadRot);
+                writer.Write(frame.LeftHandLong);
+                writer.Write(frame.RightHandLong);
+                writer.Write(frame.HandSync);
                 break;
             case ReplayEventType.ColorChanged:
-                writer.Write(e.Color);
+                writer.Write(((ColorChangedData)e.Payload).Color);
                 break;
             case ReplayEventType.MaterialChanged:
-                writer.Write(e.MaterialIndex);
+                writer.Write(((MaterialChangedData)e.Payload).MaterialIndex);
                 break;
             case ReplayEventType.NameChanged:
-                writer.Write(e.Name ?? string.Empty);
+                writer.Write(((NameChangedData)e.Payload).Name ?? string.Empty);
+                break;
+            case ReplayEventType.SoundEffect:
+                var sound = (SoundEffectData)e.Payload;
+                writer.Write(sound.SoundIndex);
+                writer.Write(sound.Volume);
+                writer.Write(sound.StopCurrentAudio);
+                break;
+            case ReplayEventType.HandTap:
+                var handTap = (HandTapData)e.Payload;
+                writer.Write(handTap.SoundIndex);
+                writer.Write(handTap.Volume);
+                writer.Write(handTap.IsLeftHand);
                 break;
         }
     }

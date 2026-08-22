@@ -86,21 +86,40 @@ public static class ReplayReader
         switch (type)
         {
             case ReplayEventType.Frame:
-                e.BodyPos = reader.ReadInt64();
-                e.BodyRot = reader.ReadInt32();
-                e.HeadRot = reader.ReadInt32();
-                e.LeftHandLong = reader.ReadInt64();
-                e.RightHandLong = reader.ReadInt64();
-                e.HandSync = reader.ReadInt32();
+                e.Payload = new FrameData
+                {
+                    BodyPos = reader.ReadInt64(),
+                    BodyRot = reader.ReadInt32(),
+                    HeadRot = reader.ReadInt32(),
+                    LeftHandLong = reader.ReadInt64(),
+                    RightHandLong = reader.ReadInt64(),
+                    HandSync = reader.ReadInt32()
+                };
                 break;
             case ReplayEventType.ColorChanged:
-                e.Color = reader.ReadInt16();
+                e.Payload = new ColorChangedData { Color = reader.ReadInt16() };
                 break;
             case ReplayEventType.MaterialChanged:
-                e.MaterialIndex = reader.ReadSByte();
+                e.Payload = new MaterialChangedData { MaterialIndex = reader.ReadSByte() };
                 break;
             case ReplayEventType.NameChanged:
-                e.Name = reader.ReadString();
+                e.Payload = new NameChangedData { Name = reader.ReadString() };
+                break;
+            case ReplayEventType.SoundEffect:
+                e.Payload = new SoundEffectData
+                {
+                    SoundIndex = reader.ReadInt32(),
+                    Volume = reader.ReadSingle(),
+                    StopCurrentAudio = reader.ReadBoolean()
+                };
+                break;
+            case ReplayEventType.HandTap:
+                e.Payload = new HandTapData
+                {
+                    SoundIndex = reader.ReadInt32(),
+                    Volume = reader.ReadSingle(),
+                    IsLeftHand = reader.ReadBoolean()
+                };
                 break;
             case ReplayEventType.PlayerLeft:
                 break;

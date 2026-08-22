@@ -126,19 +126,28 @@ public class ReplayPlayer : MonoBehaviour
             {
                 case ReplayEventType.Frame:
                     ghost.PreviousFrame = ghost.CurrentFrame;
-                    ghost.CurrentFrame = e;
+                    ghost.CurrentFrame = (FrameData)e.Payload;
                     ghost.PreviousFrameTime = ghost.CurrentFrameTime;
                     ghost.CurrentFrameTime = eventTime;
                     ghost.FramesSeen++;
                     break;
                 case ReplayEventType.ColorChanged:
-                    ghost.Rig.bodyRenderer.UpdateColor(BitPackUtils.UnpackColorFromNetwork(e.Color));
+                    ghost.Rig.bodyRenderer.UpdateColor(
+                        BitPackUtils.UnpackColorFromNetwork(((ColorChangedData)e.Payload).Color));
                     break;
                 case ReplayEventType.MaterialChanged:
-                    ghost.Rig.ChangeMaterialLocal(e.MaterialIndex);
+                    ghost.Rig.ChangeMaterialLocal(((MaterialChangedData)e.Payload).MaterialIndex);
                     break;
                 case ReplayEventType.NameChanged:
-                    ghost.Rig.SetNameTagText(e.Name);
+                    ghost.Rig.SetNameTagText(((NameChangedData)e.Payload).Name);
+                    break;
+                case ReplayEventType.SoundEffect:
+                    var sound = (SoundEffectData)e.Payload;
+                    ghost.Rig.PlayTagSoundLocal(sound.SoundIndex, sound.Volume, sound.StopCurrentAudio);
+                    break;
+                case ReplayEventType.HandTap:
+                    var handTap = (HandTapData)e.Payload;
+                    ghost.Rig.PlayHandTapLocal(handTap.SoundIndex, handTap.IsLeftHand, handTap.Volume);
                     break;
                 case ReplayEventType.PlayerLeft:
                     ghost.HasLeft = true;
@@ -155,11 +164,11 @@ public class ReplayPlayer : MonoBehaviour
         while (peekIndex < ghost.Events.Count && ghost.Events[peekIndex].Type != ReplayEventType.Frame)
             peekIndex++;
     
-        ReplayEvent nextFrame;
+        FrameData nextFrame;
         double nextFrameTime;
         if (peekIndex < ghost.Events.Count)
         {
-            nextFrame = ghost.Events[peekIndex];
+            nextFrame = (FrameData)ghost.Events[peekIndex].Payload;
             nextFrameTime = ghost.AbsoluteTimes[peekIndex];
         }
         else

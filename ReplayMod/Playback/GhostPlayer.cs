@@ -18,8 +18,8 @@ public class GhostPlayer
     public int NextEventIndex;
     public double PlaybackClock;
 
-    public ReplayEvent PreviousFrame;
-    public ReplayEvent CurrentFrame;
+    public FrameData PreviousFrame;
+    public FrameData CurrentFrame;
     public double PreviousFrameTime;
     public double CurrentFrameTime;
     public int FramesSeen;
