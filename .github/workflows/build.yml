@@ -50,12 +50,20 @@ jobs:
         run: dotnet restore
       - name: Build Project
         run: dotnet build -c Release --no-restore
-      - name: Upload build artifact
+
+      - name: Upload ReplayMod artifact
         uses: actions/upload-artifact@v7
         with:
           name: ReplayMod
-          path: |
-            ReplayMod/bin/Release/netstandard2.1/ReplayMod.dll
+          path: ReplayMod/bin/Release/netstandard2.1/ReplayMod.dll
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload ReplayMod.UI artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ReplayMod.UI
+          path: ReplayMod.UI/bin/Release/netstandard2.1/ReplayMod.UI.dll
           if-no-files-found: error
           retention-days: 7
 
@@ -74,5 +82,7 @@ jobs:
           tag_name: ${{ inputs.version }}
           name: ${{ inputs.version }}
           prerelease: ${{ inputs.prerelease }}
-          files: ReplayMod/bin/Release/netstandard2.1/ReplayMod.dll
+          files: |
+            ReplayMod/bin/Release/netstandard2.1/ReplayMod.dll
+            ReplayMod.UI/bin/Release/netstandard2.1/ReplayMod.UI.dll
           generate_release_notes: true
