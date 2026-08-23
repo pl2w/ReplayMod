@@ -126,9 +126,6 @@ internal static class GhostCosmetics
             rig.cosmeticSet = targetSet;
             rig.SetCosmeticsActive(playfx: false);
 
-            if (rig.myBodyDockPositions)
-                rig.myBodyDockPositions.RefreshTransferrableItems();
-
             state.Applied = true;
         }
         catch (Exception e)

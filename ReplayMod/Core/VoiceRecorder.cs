@@ -156,6 +156,14 @@ public static class VoiceRecorder
         }
     }
 
+    public static void RecordLocalVoice(int actorNumber, float[] samples, int channels, int sampleRate)
+    {
+        if (!_isRecording || actorNumber <= 0 || !IsActiveActor(actorNumber))
+            return;
+
+        RecordSamplesAtCurrentTime(actorNumber, samples, channels, sampleRate);
+    }
+
     public static void RecordPhotonFrame(Speaker speaker, FrameOut<float> frame)
     {
         if (!_isRecording || speaker == null || frame == null || frame.EndOfStream)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Photon.Voice;
 using ReplayMod.IO;
 using ReplayMod.Models;
 
@@ -12,6 +13,8 @@ public class ReplaySystem : ITickSystemPost
     private const double MinValidSimTimeSeconds = 60.0;
     private readonly Dictionary<int, ReplayRecorder> _recorders = [];
     private readonly HashSet<int> _recordingActors = [];
+    private LocalVoiceCapture _localVoiceCapture;
+    private LocalVoiceAudioFloat _localVoice;
     private int _localActor;
     private double _nextRecordTime;
 
@@ -197,7 +200,49 @@ public class ReplaySystem : ITickSystemPost
 
         _localActor = netPlayer.ActorNumber;
         _recorders[_localActor] = new ReplayRecorder(_localActor, rig, netSystem.SimTime);
+        VoiceRecorder.BeginRecording(_localActor);
         Logging.ModLog.Info($"Started recording LOCAL actor={_localActor}");
+    }
+
+    private void AttachLocalVoiceCapture()
+    {
+        if (_localActor == 0)
+            return;
+
+        try
+        {
+            var recorder = NetworkSystem.Instance?.LocalRecorder;
+            if (recorder == null)
+            {
+                Logging.ModLog.Debug("local recorder not available; own voice capture deferred");
+                return;
+            }
+
+            if (recorder.Voice is not LocalVoiceAudioFloat voice)
+            {
+                Logging.ModLog.Debug($"local voice type unsupported ({recorder.Voice?.GetType().Name}); own voice will not be recorded");
+                _localVoice = null;
+                return;
+            }
+
+            if (_localVoice == voice && _localVoiceCapture != null)
+            {
+                _localVoiceCapture.ActorNumber = _localActor;
+                return;
+            }
+
+            var info = voice.Info;
+            var capture = new LocalVoiceCapture(_localActor, info.SamplingRate, info.Channels);
+            voice.AddPostProcessor(capture);
+            _localVoiceCapture = capture;
+            _localVoice = voice;
+            Logging.ModLog.Info(
+                $"attached local voice capture actor={_localActor} ({info.SamplingRate}Hz/{info.Channels}ch)");
+        }
+        catch (Exception e)
+        {
+            Logging.ModLog.Warn($"failed to attach local voice capture: {e}");
+        }
     }
 
     public void RecordHandTap(int actorNumber, int soundIndex, float volume, bool isLeftHand, double timestamp)
@@ -243,5 +288,7 @@ public class ReplaySystem : ITickSystemPost
         TryBeginRecordingForLocalPlayer();
         if (_localActor != 0 && _recorders.TryGetValue(_localActor, out var localRecorder))
             localRecorder.RecordFrame(timestamp);
+
+        AttachLocalVoiceCapture();
     }
 }

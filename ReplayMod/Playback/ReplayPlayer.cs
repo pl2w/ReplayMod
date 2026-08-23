@@ -79,8 +79,9 @@ public class ReplayPlayer : MonoBehaviour
         {
             voiceSource = rig.gameObject.AddComponent<AudioSource>();
             voiceSource.playOnAwake = false;
-            voiceSource.spatialBlend = 1f;
         }
+
+        voiceSource.spatialBlend = 1f;
 
         rig.remoteUseReplacementVoice = true;
         rig.IsMicEnabled = true;

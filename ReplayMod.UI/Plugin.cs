@@ -14,6 +14,7 @@ public class Plugin : BaseUnityPlugin
 {
     private const int WindowId = 707001;
     private Rect _windowRect = new(100, 100, 330, 232);
+    private bool _uiVisible;
     private bool _scrubbing;
     private bool _prevLeftPrimary;
     private bool _showReplayList;
@@ -30,7 +31,7 @@ public class Plugin : BaseUnityPlugin
         }
 
         var down = poller.leftControllerPrimaryButton;
-        if (down && !_prevLeftPrimary)
+        if (down && !_prevLeftPrimary && _uiVisible)
         {
             var replaySystem = ReplayMod.Plugin.ReplaySystem;
             if (replaySystem is { IsRecording: true })
@@ -40,10 +41,16 @@ public class Plugin : BaseUnityPlugin
         }
 
         _prevLeftPrimary = down;
+
+        if (UnityInput.Current.GetKeyDown(KeyCode.X))
+            _uiVisible = !_uiVisible;
     }
 
     public void OnGUI()
     {
+        if (!_uiVisible)
+            return;
+
         _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, "Replay Playback");
     }
 
