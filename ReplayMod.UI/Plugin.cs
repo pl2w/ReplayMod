@@ -1,4 +1,4 @@
-using System.Globalization;
+using System;
 using System.IO;
 using System.Linq;
 using BepInEx;
@@ -13,8 +13,34 @@ namespace ReplayMod.UI;
 public class Plugin : BaseUnityPlugin
 {
     private const int WindowId = 707001;
-    private Rect _windowRect = new(100, 100, 330, 180);
+    private Rect _windowRect = new(100, 100, 330, 232);
     private bool _scrubbing;
+    private bool _prevLeftPrimary;
+    private bool _showReplayList;
+    private string[] _replayFiles = [];
+    private Vector2 _replayScroll;
+
+    public void Update()
+    {
+        var poller = ControllerInputPoller.instance;
+        if (poller == null)
+        {
+            _prevLeftPrimary = false;
+            return;
+        }
+
+        var down = poller.leftControllerPrimaryButton;
+        if (down && !_prevLeftPrimary)
+        {
+            var replaySystem = ReplayMod.Plugin.ReplaySystem;
+            if (replaySystem is { IsRecording: true })
+                replaySystem.StopRecording();
+            else
+                replaySystem?.StartRecording();
+        }
+
+        _prevLeftPrimary = down;
+    }
 
     public void OnGUI()
     {
@@ -32,12 +58,23 @@ public class Plugin : BaseUnityPlugin
         var duration = replayPlayer ? replayPlayer.Duration : 0f;
         var time = replayPlayer ? replayPlayer.PlaybackTime : 0f;
         var playing = replayPlayer && replayPlayer.IsPlaying;
+        var inRoom = NetworkSystem.Instance != null && NetworkSystem.Instance.InRoom;
 
         const float y = 26;
 
         if (GUI.Button(new Rect(10, y, 84, 24), "Load..."))
-            PlayLatestReplay();
+        {
+            _showReplayList = true;
+            RefreshReplayList();
+        }
 
+        if (_showReplayList)
+        {
+            DrawReplayList(y + 28);
+            return;
+        }
+
+        GUI.enabled = inRoom;
         if (GUI.Button(new Rect(100, y, 84, 24), isRecording ? "Stop Rec" : "Record"))
         {
             if (isRecording)
@@ -45,6 +82,7 @@ public class Plugin : BaseUnityPlugin
             else
                 replaySystem?.StartRecording();
         }
+        GUI.enabled = true;
 
         if (GUI.Button(new Rect(246, y, 74, 24), "Stop"))
             replayPlayer?.Stop();
@@ -95,6 +133,17 @@ public class Plugin : BaseUnityPlugin
 
         const float y5 = 132;
         GUI.Label(new Rect(10, y5, 130, 20), $"Tick: {(int)(time * 30f)} / {(int)(duration * 30f)}");
+
+        if (isRecording && replaySystem != null)
+        {
+            const float y6 = 158;
+            var elapsed = (float)(DateTime.UtcNow - replaySystem.RecordingStartTime).TotalSeconds;
+            GUI.Box(new Rect(10, y6, 306, 64), "Recording");
+            GUI.Label(new Rect(18, y6 + 18, 290, 20),
+                $"Room: {replaySystem.RecordingRoomName}");
+            GUI.Label(new Rect(18, y6 + 38, 290, 20),
+                $"Time: {FmtTime(elapsed)}   Players: {replaySystem.RecordedActorCount}");
+        }
     }
 
     private static string FmtTime(float seconds)
@@ -103,23 +152,68 @@ public class Plugin : BaseUnityPlugin
         return $"{total / 60:00}:{total % 60:00}";
     }
 
-    private static void PlayLatestReplay()
+    private void RefreshReplayList()
+    {
+        if (!Directory.Exists(ReplayWriter.ReplayFolder))
+        {
+            _replayFiles = [];
+            return;
+        }
+
+        _replayFiles = Directory.GetFiles(ReplayWriter.ReplayFolder, "*.replay")
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .ToArray();
+    }
+
+    private void DrawReplayList(float y)
+    {
+        var height = _windowRect.height - y - 10;
+        if (height < 40)
+            height = 40;
+
+        GUI.Label(new Rect(10, y, 270, 24), "Select a replay to play");
+        if (GUI.Button(new Rect(270, y, 46, 24), "Back"))
+        {
+            _showReplayList = false;
+            return;
+        }
+
+        if (_replayFiles.Length == 0)
+        {
+            GUI.Label(new Rect(10, y + 30, 306, 20), "No replays found.");
+            return;
+        }
+
+        var rowH = 20;
+        var rows = _replayFiles.Length;
+        var viewH = rows * rowH;
+        _replayScroll = GUI.BeginScrollView(
+            new Rect(10, y + 28, 306, height - 30), _replayScroll,
+            new Rect(0, 0, 290, viewH));
+
+        for (var i = 0; i < rows; i++)
+        {
+            var name = Path.GetFileNameWithoutExtension(_replayFiles[i]);
+            var rowRect = new Rect(0, i * rowH, 290, rowH);
+
+            if (GUI.Button(rowRect, name))
+            {
+                _showReplayList = false;
+                LoadReplay(_replayFiles[i]);
+                break;
+            }
+        }
+
+        GUI.EndScrollView();
+    }
+
+    private static void LoadReplay(string path)
     {
         var replayPlayer = ReplayMod.Plugin.ReplayPlayer;
         if (!replayPlayer)
             return;
 
-        if (!Directory.Exists(ReplayWriter.ReplayFolder))
-            return;
-
-        var latest = Directory.GetFiles(ReplayWriter.ReplayFolder, "*.replay")
-            .OrderByDescending(File.GetLastWriteTimeUtc)
-            .FirstOrDefault();
-
-        if (latest == null)
-            return;
-
-        replayPlayer.Load(latest, SpawnGhostRig);
+        replayPlayer.Load(path, SpawnGhostRig);
     }
 
     private static VRRig SpawnGhostRig(int actorNumber)

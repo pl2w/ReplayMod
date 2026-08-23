@@ -66,12 +66,13 @@ public sealed class ReplayRecorder
     private void RecordCosmeticsIfChanged(double timestamp)
     {
         var items = _rig.cosmeticSet?.items;
-        if (items == null || items.Length == 0)
-            return;
 
-        var current = new string[items.Length];
-        for (var i = 0; i < items.Length; i++)
-            current[i] = items[i].displayName;
+        var current = new string[items?.Length ?? 0];
+        if (items != null)
+        {
+            for (var i = 0; i < items.Length; i++)
+                current[i] = items[i].displayName;
+        }
 
         if (_lastRecordedCosmetics != null && SlotsEqual(_lastRecordedCosmetics, current))
             return;

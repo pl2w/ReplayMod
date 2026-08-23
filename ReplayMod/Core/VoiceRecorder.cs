@@ -133,6 +133,17 @@ public static class VoiceRecorder
         ModLog.Debug("VoiceRecorder stopped all");
     }
 
+    public static int TotalChunkCount()
+    {
+        lock (Buffers)
+        {
+            var total = 0;
+            foreach (var chunks in Buffers.Values)
+                total += chunks.Count;
+            return total;
+        }
+    }
+
     public static Dictionary<int, List<VoiceChunk>> SnapshotBuffers()
     {
         lock (Buffers)

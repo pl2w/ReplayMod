@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ReplayMod.IO;
 using ReplayMod.Models;
 
@@ -17,8 +18,31 @@ public class ReplaySystem : ITickSystemPost
     public bool IsRecording { get; private set; }
     public bool PostTickRunning { get; set; }
 
+    public DateTime RecordingStartTime { get; private set; }
+    public string RecordingRoomName { get; private set; }
+    public int RecordedActorCount => _recorders.Count;
+    public int TotalPoseEvents
+    {
+        get
+        {
+            var total = 0;
+            foreach (var recorder in _recorders.Values)
+                total += recorder.Events.Count;
+            return total;
+        }
+    }
+
+    public int TotalVoiceChunks => VoiceRecorder.TotalChunkCount();
+
     public void StartRecording()
     {
+        var netSystem = NetworkSystem.Instance;
+        if (netSystem == null || !netSystem.InRoom)
+        {
+            Logging.ModLog.Warn("Cannot start recording: not in a room.");
+            return;
+        }
+
         if (IsRecording) StopRecording();
 
         _recorders.Clear();
@@ -28,10 +52,12 @@ public class ReplaySystem : ITickSystemPost
         _nextRecordTime = 0;
         TickSystem<object>.AddPostTickCallback(this);
         IsRecording = true;
+        RecordingStartTime = DateTime.UtcNow;
+        RecordingRoomName = netSystem.RoomName;
 
-        Logging.ModLog.Info($"Recording started. players={NetworkSystem.Instance.AllNetPlayers.Length}");
+        Logging.ModLog.Info($"Recording started. players={netSystem.AllNetPlayers.Length} room={RecordingRoomName}");
 
-        foreach (var player in NetworkSystem.Instance.AllNetPlayers)
+        foreach (var player in netSystem.AllNetPlayers)
         {
             VoiceRecorder.BeginRecording(player.ActorNumber);
             TryBeginRecordingForPlayer(player);
@@ -41,6 +67,7 @@ public class ReplaySystem : ITickSystemPost
 
         RoomSystem.PlayerJoinedEvent += OnPlayerJoined;
         RoomSystem.PlayerLeftEvent += OnPlayerLeft;
+        RoomSystem.LeftRoomEvent += OnLeftRoom;
     }
 
     public void StopRecording()
@@ -50,6 +77,7 @@ public class ReplaySystem : ITickSystemPost
         TickSystem<object>.RemovePostTickCallback(this);
         RoomSystem.PlayerJoinedEvent -= OnPlayerJoined;
         RoomSystem.PlayerLeftEvent -= OnPlayerLeft;
+        RoomSystem.LeftRoomEvent -= OnLeftRoom;
 
         foreach (var (_, recorder) in _recorders)
             recorder.Dispose();
@@ -70,10 +98,16 @@ public class ReplaySystem : ITickSystemPost
             return;
         }
 
-        var fileName = $"replay_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}";
+        var room = string.IsNullOrEmpty(RecordingRoomName)
+            ? "unknown"
+            : new string(RecordingRoomName.Where(c => char.IsLetterOrDigit(c)).ToArray());
+        if (string.IsNullOrEmpty(room))
+            room = "unknown";
+
+        var fileName = $"{room}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}";
         var path = ReplayWriter.Save(fileName, SnapshotPoseStreams(), voiceBuffers);
         Logging.ModLog.Info(
-            $"Recording stopped. players={_recorders.Count} voice={voiceBuffers.Count} -> {path}");
+            $"Recording stopped. room={RecordingRoomName} players={_recorders.Count} voice={voiceBuffers.Count} -> {path}");
     }
     
     private Dictionary<int, List<ReplayEvent>> SnapshotPoseStreams()
@@ -85,6 +119,15 @@ public class ReplaySystem : ITickSystemPost
             Logging.ModLog.Info($"actor={actorNumber} recorded {recorder.Events.Count} pose events");
         }
         return result;
+    }
+
+    private void OnLeftRoom()
+    {
+        if (!IsRecording)
+            return;
+
+        Logging.ModLog.Info("Left room while recording; stopping recording.");
+        StopRecording();
     }
 
     private void OnPlayerJoined(NetPlayer player)
