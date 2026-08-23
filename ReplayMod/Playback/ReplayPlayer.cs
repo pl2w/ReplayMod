@@ -198,6 +198,7 @@ public class ReplayPlayer : MonoBehaviour
         }
 
         ApplyInterpolation(ghost);
+        UpdateRigVisibility(ghost);
     }
 
     private void RecomputeGhost(GhostPlayer ghost, bool replayAudioEvents = true)
@@ -229,8 +230,14 @@ public class ReplayPlayer : MonoBehaviour
             return;
 
         var active = !ghost.HasLeft;
-        if (active && ghost.Events.Count > 0 && ghost.PlaybackClock < ghost.AbsoluteTimes[0])
-            active = false;
+
+        if (active && ghost.Events.Count > 0)
+        {
+            if (ghost.PlaybackClock < ghost.AbsoluteTimes[0])
+                active = false;
+            else if (ghost.NextEventIndex >= ghost.Events.Count)
+                active = false;
+        }
 
         if (ghost.Rig.gameObject.activeSelf != active)
             ghost.Rig.gameObject.SetActive(active);
