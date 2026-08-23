@@ -171,24 +171,15 @@ public class ReplayPlayer : MonoBehaviour
             StartVoices();
     }
 
-    private void OnEnable()
-    {
-        RoomSystem.JoinedRoomEvent += OnJoinedRoom;
-    }
-
-    private void OnDisable()
-    {
-        RoomSystem.JoinedRoomEvent -= OnJoinedRoom;
-    }
-
-    private void OnJoinedRoom()
-    {
-        Stop();
-        Logging.ModLog.Info("Stopped replay because a room was joined.");
-    }
-
     private void Update()
     {
+        if (NetworkSystem.Instance != null && NetworkSystem.Instance.InRoom)
+        {
+            if (IsPlaying)
+                Stop();
+            return;
+        }
+
         if (!IsPlaying)
             return;
 
