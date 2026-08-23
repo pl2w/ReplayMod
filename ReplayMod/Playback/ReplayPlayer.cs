@@ -94,7 +94,10 @@ public class ReplayPlayer : MonoBehaviour
             return;
         }
 
-        var voiceSource = rig.gameObject.AddComponent<AudioSource>();
+        var container = rig.rigContainer != null ? rig.rigContainer : rig.GetComponentInParent<RigContainer>();
+        var parent = rig.head.rigTarget.transform;
+
+        var voiceSource = parent.gameObject.AddComponent<AudioSource>();
         voiceSource.playOnAwake = false;
         voiceSource.spatialBlend = 0.9f;
         voiceSource.dopplerLevel = 1f;
@@ -103,7 +106,7 @@ public class ReplayPlayer : MonoBehaviour
         voiceSource.minDistance = 1f;
         voiceSource.maxDistance = 500f;
         voiceSource.rolloffMode = AudioRolloffMode.Linear;
-        Logging.ModLog.Debug($"Created voice AudioSource for actor={actorNumber}");
+        Logging.ModLog.Debug($"Created voice AudioSource for actor={actorNumber} under '{parent.name}'");
 
         rig.remoteUseReplacementVoice = true;
         rig.IsMicEnabled = true;
