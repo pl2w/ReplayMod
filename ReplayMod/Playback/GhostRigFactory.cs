@@ -13,8 +13,6 @@ public static class GhostRigFactory
     private static GameObject _template;
     private static readonly List<VRRig> Pool = [];
 
-    internal static bool IsSpawning { get; private set; }
-    
     private static readonly HashSet<Type> TypesToDisable =
     [
         typeof(RigContainer),
@@ -56,10 +54,7 @@ public static class GhostRigFactory
 
         if (!rig)
         {
-            IsSpawning = true;
-            GameObject instance;
-            try { instance = Object.Instantiate(_template); }
-            finally { IsSpawning = false; }
+            var instance = Object.Instantiate(_template);
 
             Object.DontDestroyOnLoad(instance);
             fresh = true;
@@ -115,15 +110,7 @@ public static class GhostRigFactory
             return;
         }
 
-        IsSpawning = true;
-        try
-        {
-            _template = Object.Instantiate(VRRigCache.Instance.rigTemplate);
-        }
-        finally
-        {
-            IsSpawning = false;
-        }
+        _template = Object.Instantiate(VRRigCache.Instance.rigTemplate);
 
         _template.name = "GhostRig_Template";
         _template.SetActive(false);

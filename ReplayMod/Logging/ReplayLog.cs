@@ -10,28 +10,28 @@ public static class ReplayLog
     private static StreamWriter _writer;
     private static string _path;
 
-    private static StreamWriter EnsureWriter()
+    private static StreamWriter Writer
     {
-        if (_writer != null)
-            return _writer;
-
-        lock (Sync)
+        get
         {
-            if (_writer != null)
-                return _writer;
-
-            var dir = Path.Combine(Paths.PluginPath, "ReplayMod", "Logs");
-            Directory.CreateDirectory(dir);
-
-            var stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-            _path = Path.Combine(dir, $"replay_{stamp}.log");
-
-            _writer = new StreamWriter(_path, append: false)
+            lock (Sync)
             {
-                AutoFlush = true
-            };
+                if (_writer != null)
+                    return _writer;
 
-            return _writer;
+                var dir = Path.Combine(Paths.PluginPath, "ReplayMod", "Logs");
+                Directory.CreateDirectory(dir);
+
+                var stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+                _path = Path.Combine(dir, $"replay_{stamp}.log");
+
+                _writer = new StreamWriter(_path, append: false)
+                {
+                    AutoFlush = true
+                };
+
+                return _writer;
+            }
         }
     }
 
@@ -39,7 +39,7 @@ public static class ReplayLog
     {
         get
         {
-            EnsureWriter();
+            _ = Writer;
             return _path;
         }
     }
@@ -48,16 +48,7 @@ public static class ReplayLog
     {
         lock (Sync)
         {
-            var writer = EnsureWriter();
-            writer.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [{level}] {data}");
-        }
-    }
-
-    public static void Flush()
-    {
-        lock (Sync)
-        {
-            _writer?.Flush();
+            Writer.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [{level}] {data}");
         }
     }
 

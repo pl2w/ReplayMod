@@ -13,13 +13,13 @@ public static class VoiceRecorder
     private const int StoredChannels = 1;
     private const float SilenceThreshold = 0.001f;
 
-    private static readonly Dictionary<int, List<VoiceChunk>> Buffers = new();
+    private static readonly Dictionary<int, List<VoiceChunk>> Buffers = [];
 
-    private static readonly Dictionary<int, double> LastTimestamps = new();
-    private static readonly HashSet<int> ActiveActors = new();
-    private static readonly Dictionary<Speaker, VoiceFormat> SpeakerFormats = new();
+    private static readonly Dictionary<int, double> LastTimestamps = [];
+    private static readonly HashSet<int> ActiveActors = [];
+    private static readonly Dictionary<Speaker, VoiceFormat> SpeakerFormats = [];
     private static readonly HashSet<Speaker> UnknownFormatWarned = [];
-    private static readonly Dictionary<Speaker, int> SpeakerActorNumbers = new();
+    private static readonly Dictionary<Speaker, int> SpeakerActorNumbers = [];
     private static readonly object MappingLock = new();
     private static double _startDspTime;
     private static bool _isRecording;
