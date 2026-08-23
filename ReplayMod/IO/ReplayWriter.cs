@@ -21,43 +21,61 @@ public static class ReplayWriter
 
         var path = Path.Combine(ReplayFolder, fileName + ".replay");
 
-        using var fileStream = File.Create(path);
-        using var gzipStream = new GZipStream(fileStream, CompressionLevel.Optimal);
-        using var writer = new BinaryWriter(gzipStream);
-        writer.Write(ReplayFormat.MagicNumber);
-        writer.Write(ReplayFormat.Version);
-        writer.Write(DateTime.UtcNow.ToBinary());
-
-        writer.Write(poseStreams.Count);
-
-        foreach (var (actorNumber, events) in poseStreams)
+        try
         {
-            writer.Write(actorNumber);
-            writer.Write(events.Count);
+            using var fileStream = File.Create(path);
+            using var gzipStream = new GZipStream(fileStream, CompressionLevel.Optimal);
+            using var writer = new BinaryWriter(gzipStream);
+            writer.Write(ReplayFormat.MagicNumber);
+            writer.Write(ReplayFormat.Version);
+            writer.Write(DateTime.UtcNow.ToBinary());
 
-            foreach (var e in events)
-                WriteEvent(writer, e);
+            writer.Write(poseStreams.Count);
+
+            foreach (var (actorNumber, events) in poseStreams)
+            {
+                writer.Write(actorNumber);
+                writer.Write(events.Count);
+
+                foreach (var e in events)
+                    WriteEvent(writer, e);
+            }
+
+            var nonEmptyVoiceStreamCount = 0;
+            foreach (var (_, chunks) in voiceStreams)
+            {
+                if (chunks.Count > 0)
+                    nonEmptyVoiceStreamCount++;
+            }
+
+            writer.Write(nonEmptyVoiceStreamCount);
+
+            foreach (var (actorNumber, chunks) in voiceStreams)
+            {
+                if (chunks.Count == 0)
+                    continue;
+
+                writer.Write(actorNumber);
+                writer.Write(chunks.Count);
+
+                foreach (var chunk in chunks)
+                    WriteVoiceChunk(writer, chunk);
+            }
         }
-
-        var nonEmptyVoiceStreamCount = 0;
-        foreach (var (_, chunks) in voiceStreams)
+        catch (Exception e)
         {
-            if (chunks.Count > 0)
-                nonEmptyVoiceStreamCount++;
-        }
+            Logging.ModLog.Error($"Failed to write replay to '{path}': {e}");
+            try
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
 
-        writer.Write(nonEmptyVoiceStreamCount);
-
-        foreach (var (actorNumber, chunks) in voiceStreams)
-        {
-            if (chunks.Count == 0)
-                continue;
-
-            writer.Write(actorNumber);
-            writer.Write(chunks.Count);
-
-            foreach (var chunk in chunks)
-                WriteVoiceChunk(writer, chunk);
+            return null;
         }
 
         Logging.ModLog.Info($"Saved replay to {path}");

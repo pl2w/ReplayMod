@@ -16,11 +16,17 @@ public static class ReplayReader
 
         var magic = reader.ReadInt32();
         if (magic != ReplayFormat.MagicNumber)
+        {
+            Logging.ModLog.Error($"Not a valid replay file (bad magic {magic:X}): {path}");
             throw new InvalidDataException($"Not a valid replay file: {path}");
+        }
 
         var version = reader.ReadInt32();
         if (version is < 1 or > ReplayFormat.Version)
+        {
+            Logging.ModLog.Error($"Unsupported replay version {version} (expected 1-{ReplayFormat.Version}): {path}");
             throw new InvalidDataException($"Unsupported replay version {version} (expected 1-{ReplayFormat.Version})");
+        }
 
         var recordedAt = DateTime.FromBinary(reader.ReadInt64());
         var replay = new ReplayData();

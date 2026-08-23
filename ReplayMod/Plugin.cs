@@ -1,3 +1,4 @@
+using System;
 using BepInEx;
 using HarmonyLib;
 using ReplayMod.Core;
@@ -20,7 +21,14 @@ public class Plugin : BaseUnityPlugin
         ModLog.Source = Logger;
 
         _harmony = new Harmony(PluginInfo.Guid);
-        _harmony.PatchAll(typeof(VoiceRecorderPatches).Assembly);
+        try
+        {
+            _harmony.PatchAll(typeof(VoiceRecorderPatches).Assembly);
+        }
+        catch (Exception e)
+        {
+            ModLog.Error($"Failed to apply Harmony patches: {e}");
+        }
 
         ReplaySystem = new ReplaySystem();
         ReplayPlayer = gameObject.AddComponent<ReplayPlayer>();

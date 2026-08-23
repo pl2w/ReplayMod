@@ -189,14 +189,20 @@ public class ReplaySystem : ITickSystemPost
 
         var netPlayer = netSystem.LocalPlayer;
         if (netPlayer == null)
+        {
+            Logging.ModLog.Debug("local player unavailable; skipping local recording");
             return;
+        }
 
         if (_recorders.ContainsKey(netPlayer.ActorNumber))
             return;
 
         var rig = GorillaTagger.Instance ? GorillaTagger.Instance.offlineVRRig : null;
         if (!rig)
+        {
+            Logging.ModLog.Debug("offline rig unavailable; local recording deferred");
             return;
+        }
 
         _localActor = netPlayer.ActorNumber;
         _recorders[_localActor] = new ReplayRecorder(_localActor, rig, netSystem.SimTime);

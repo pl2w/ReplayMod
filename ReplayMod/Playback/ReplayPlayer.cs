@@ -30,8 +30,16 @@ public class ReplayPlayer : MonoBehaviour
         }
 
         Logging.ModLog.Info($"Loading replay from {path}");
-        var replay = ReplayReader.Load(path);
-
+        ReplayData replay;
+        try
+        {
+            replay = ReplayReader.Load(path);
+        }
+        catch (Exception e)
+        {
+            Logging.ModLog.Error($"Failed to load replay '{path}': {e.Message}");
+            return;
+        }
         foreach (var (actorNumber, events) in replay.PoseStreams)
         {
             if (events.Count == 0) continue;
@@ -81,16 +89,21 @@ public class ReplayPlayer : MonoBehaviour
     {
         var rig = spawnGhostRig(actorNumber);
         if (rig == null)
-            return;
-
-        var voiceSource = rig.GetComponent<AudioSource>();
-        if (!voiceSource)
         {
-            voiceSource = rig.gameObject.AddComponent<AudioSource>();
-            voiceSource.playOnAwake = false;
+            Logging.ModLog.Error($"Failed to spawn ghost rig for actor={actorNumber}");
+            return;
         }
 
-        voiceSource.spatialBlend = 1f;
+        var voiceSource = rig.gameObject.AddComponent<AudioSource>();
+        voiceSource.playOnAwake = false;
+        voiceSource.spatialBlend = 0.9f;
+        voiceSource.dopplerLevel = 1f;
+        voiceSource.spread = 0f;
+        voiceSource.spatialize = true;
+        voiceSource.minDistance = 1f;
+        voiceSource.maxDistance = 500f;
+        voiceSource.rolloffMode = AudioRolloffMode.Linear;
+        Logging.ModLog.Debug($"Created voice AudioSource for actor={actorNumber}");
 
         rig.remoteUseReplacementVoice = true;
         rig.IsMicEnabled = true;
