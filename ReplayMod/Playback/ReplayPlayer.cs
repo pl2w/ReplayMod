@@ -10,10 +10,12 @@ public class ReplayPlayer : MonoBehaviour
 {
     private readonly List<GhostPlayer> _ghosts = [];
     private readonly float _playbackSpeed = 1f;
+    private bool _isLoaded;
 
     private static readonly float[] VoiceSampleBuffer = new float[256];
 
     public bool IsPlaying { get; private set; }
+    public bool IsLoaded => _isLoaded;
     public float PlaybackTime { get; private set; }
     public float Duration { get; private set; }
 
@@ -51,6 +53,7 @@ public class ReplayPlayer : MonoBehaviour
         Duration = ComputeDuration();
         PlaybackTime = 0;
         IsPlaying = true;
+        _isLoaded = true;
         StartVoices();
 
         Logging.ModLog.Info($"Playback started with {_ghosts.Count} ghosts, duration={Duration:F3}s");
@@ -121,6 +124,7 @@ public class ReplayPlayer : MonoBehaviour
         GhostCosmetics.Reset();
 
         IsPlaying = false;
+        _isLoaded = false;
         PlaybackTime = 0;
         Duration = 0;
     }
