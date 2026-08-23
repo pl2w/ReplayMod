@@ -141,12 +141,12 @@ public class ReplaySystem : ITickSystemPost
             return;
 
         var netSystem = NetworkSystem.Instance;
-        if (netSystem == null || !netSystem.InRoom || netSystem.SimTime < MinValidSimTimeSeconds)
+        if (!netSystem || !netSystem.InRoom || netSystem.SimTime < MinValidSimTimeSeconds)
             return;
 
         var netPlayer = netSystem.LocalPlayer;
-        var rig = GorillaTagger.Instance != null ? GorillaTagger.Instance.offlineVRRig : null;
-        if (netPlayer == null || rig == null)
+        var rig = GorillaTagger.Instance ? GorillaTagger.Instance.offlineVRRig : null;
+        if (netPlayer == null || !rig)
             return;
 
         _localActor = netPlayer.ActorNumber;

@@ -9,9 +9,6 @@ namespace ReplayMod.IO;
 
 public static class ReplayWriter
 {
-    private const int MagicNumber = 0x52504C59; // "RPLY"
-    private const int FormatVersion = 3;
-
     public static readonly string ReplayFolder =
         Path.Combine(Paths.PluginPath, "ReplayMod", "Recordings");
 
@@ -27,8 +24,8 @@ public static class ReplayWriter
         using var fileStream = File.Create(path);
         using var gzipStream = new GZipStream(fileStream, CompressionLevel.Optimal);
         using var writer = new BinaryWriter(gzipStream);
-        writer.Write(MagicNumber);
-        writer.Write(FormatVersion);
+        writer.Write(ReplayFormat.MagicNumber);
+        writer.Write(ReplayFormat.Version);
         writer.Write(DateTime.UtcNow.ToBinary());
 
         writer.Write(poseStreams.Count);

@@ -12,7 +12,6 @@ public class GhostPlayer
     public VRRig Rig;
     public AudioSource VoiceSource;
     public AudioClip VoiceClip;
-    public bool VoiceClipScheduled;
 
     public int NextEventIndex;
     public double PlaybackClock;

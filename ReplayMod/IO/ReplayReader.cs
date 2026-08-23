@@ -8,9 +8,6 @@ namespace ReplayMod.IO;
 
 public static class ReplayReader
 {
-    private const int MagicNumber = 0x52504C59;
-    private const int FormatVersion = 3;
-
     public static ReplayData Load(string path)
     {
         using var fileStream = File.OpenRead(path);
@@ -18,12 +15,12 @@ public static class ReplayReader
         using var reader = new BinaryReader(gzipStream);
 
         var magic = reader.ReadInt32();
-        if (magic != MagicNumber)
+        if (magic != ReplayFormat.MagicNumber)
             throw new InvalidDataException($"Not a valid replay file: {path}");
 
         var version = reader.ReadInt32();
-        if (version is < 1 or > FormatVersion)
-            throw new InvalidDataException($"Unsupported replay version {version} (expected 1-{FormatVersion})");
+        if (version is < 1 or > ReplayFormat.Version)
+            throw new InvalidDataException($"Unsupported replay version {version} (expected 1-{ReplayFormat.Version})");
 
         var recordedAt = DateTime.FromBinary(reader.ReadInt64());
         var replay = new ReplayData();
@@ -43,9 +40,6 @@ public static class ReplayReader
             replay.PoseStreams[actorNumber] = events;
             Logging.ModLog.Debug($"  actor={actorNumber}: {eventCount} pose events");
         }
-
-        if (version < 2)
-            return replay;
 
         var voiceStreamCount = reader.ReadInt32();
         for (var p = 0; p < voiceStreamCount; p++)

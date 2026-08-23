@@ -36,8 +36,8 @@ public static class VoiceRecorder
         lock (MappingLock)
         {
             ActiveActors.Clear();
-            SpeakerFormats.Clear();
             SpeakerActorNumbers.Clear();
+            PruneDestroyedSpeakersLocked();
         }
         _startDspTime = AudioSettings.dspTime;
         _isRecording = true;
@@ -125,9 +125,9 @@ public static class VoiceRecorder
         lock (MappingLock)
         {
             ActiveActors.Clear();
-            SpeakerFormats.Clear();
             UnknownFormatWarned.Clear();
             SpeakerActorNumbers.Clear();
+            PruneDestroyedSpeakersLocked();
         }
         _isRecording = false;
         ModLog.Debug("VoiceRecorder stopped all");

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using ReplayMod.IO;
@@ -9,12 +10,14 @@ public class ReplayPlayer : MonoBehaviour
 {
     private readonly List<GhostPlayer> _ghosts = [];
     private readonly float _playbackSpeed = 1f;
-    
+
     private static readonly float[] VoiceSampleBuffer = new float[256];
 
-    private bool _isPlaying;
+    public bool IsPlaying { get; private set; }
+    public float PlaybackTime { get; private set; }
+    public float Duration { get; private set; }
 
-    public void Load(string path, System.Func<int, VRRig> spawnGhostRig)
+    public void Load(string path, Func<int, VRRig> spawnGhostRig)
     {
         Stop();
 
@@ -39,15 +42,33 @@ public class ReplayPlayer : MonoBehaviour
             AddGhost(actorNumber, [], voiceChunks, spawnGhostRig);
         }
 
-        _isPlaying = true;
-        Logging.ModLog.Info($"Playback started with {_ghosts.Count} ghosts");
+        Duration = ComputeDuration();
+        PlaybackTime = 0;
+        IsPlaying = true;
+        StartVoices();
+
+        Logging.ModLog.Info($"Playback started with {_ghosts.Count} ghosts, duration={Duration:F3}s");
+    }
+
+    private float ComputeDuration()
+    {
+        var max = 0f;
+        foreach (var ghost in _ghosts)
+        {
+            if (ghost.Events.Count > 0)
+                max = Mathf.Max(max, (float)ghost.AbsoluteTimes[^1]);
+            if (ghost.VoiceClip)
+                max = Mathf.Max(max, ghost.VoiceClip.length);
+        }
+
+        return max;
     }
 
     private void AddGhost(
         int actorNumber,
         List<ReplayEvent> events,
         List<VoiceChunk> voiceChunks,
-        System.Func<int, VRRig> spawnGhostRig)
+        Func<int, VRRig> spawnGhostRig)
     {
         var rig = spawnGhostRig(actorNumber);
         if (rig == null)
@@ -60,7 +81,7 @@ public class ReplayPlayer : MonoBehaviour
             voiceSource.playOnAwake = false;
             voiceSource.spatialBlend = 1f;
         }
-        
+
         rig.remoteUseReplacementVoice = true;
         rig.IsMicEnabled = true;
 
@@ -71,9 +92,7 @@ public class ReplayPlayer : MonoBehaviour
             AbsoluteTimes = BuildAbsoluteTimes(events),
             VoiceClip = BuildVoiceClip(actorNumber, voiceChunks),
             Rig = rig,
-            VoiceSource = voiceSource,
-            NextEventIndex = 0,
-            PlaybackClock = 0
+            VoiceSource = voiceSource
         };
 
         _ghosts.Add(ghost);
@@ -85,111 +104,191 @@ public class ReplayPlayer : MonoBehaviour
         Logging.ModLog.Info($"Stopping playback ({_ghosts.Count} ghosts)");
         foreach (var ghost in _ghosts)
         {
+            ghost.VoiceSource?.Stop();
             if (ghost.VoiceClip)
                 Destroy(ghost.VoiceClip);
             GhostRigFactory.Release(ghost.Rig);
         }
+
         _ghosts.Clear();
         GhostCosmetics.Reset();
-        _isPlaying = false;
+
+        IsPlaying = false;
+        PlaybackTime = 0;
+        Duration = 0;
+    }
+
+    public void Play()
+    {
+        if (Duration <= 0)
+            return;
+
+        if (PlaybackTime >= Duration)
+        {
+            PlaybackTime = 0;
+            foreach (var ghost in _ghosts)
+                RecomputeGhost(ghost);
+        }
+
+        IsPlaying = true;
+        StartVoices();
+    }
+
+    public void Pause()
+    {
+        if (!IsPlaying)
+            return;
+
+        IsPlaying = false;
+        StopVoices();
+    }
+
+    public void TogglePlayback()
+    {
+        if (IsPlaying)
+            Pause();
+        else
+            Play();
+    }
+
+    public void Seek(float t)
+    {
+        if (Duration <= 0 || _ghosts.Count == 0)
+            return;
+
+        PlaybackTime = Mathf.Clamp(t, 0f, Duration);
+        foreach (var ghost in _ghosts)
+            RecomputeGhost(ghost, replayAudioEvents: false);
+
+        if (IsPlaying)
+            StartVoices();
     }
 
     private void Update()
     {
-        if (!_isPlaying) return;
+        if (!IsPlaying)
+            return;
 
         GhostCosmetics.Tick();
 
-        var dt = Time.deltaTime * _playbackSpeed;
+        PlaybackTime += Time.deltaTime * _playbackSpeed;
+        if (PlaybackTime >= Duration)
+        {
+            PlaybackTime = Duration;
+            IsPlaying = false;
+            StopVoices();
+        }
 
         foreach (var ghost in _ghosts)
-            AdvanceGhost(ghost, dt);
-
-        RemoveDepartedGhosts();
+            AdvanceGhost(ghost);
     }
 
-    private void RemoveDepartedGhosts()
+    private void AdvanceGhost(GhostPlayer ghost)
     {
-        for (var i = _ghosts.Count - 1; i >= 0; i--)
-        {
-            var g = _ghosts[i];
-
-            bool finished;
-            if (g.Events.Count > 0)
-                finished = g.NextEventIndex >= g.Events.Count;
-            else
-                finished = g.VoiceClip == null || g.PlaybackClock >= g.VoiceClip.length;
-
-            if (!g.HasLeft && !finished)
-                continue;
-
-            Logging.ModLog.Info(
-                $"Ghost actor={g.ActorNumber} removed at t={g.PlaybackClock:F3} (HasLeft={g.HasLeft}, finished={finished})");
-            if (g.VoiceClip) Destroy(g.VoiceClip);
-            GhostRigFactory.Release(g.Rig);
-            _ghosts.RemoveAt(i);
-        }
-    }
-
-    private void AdvanceGhost(GhostPlayer ghost, float dt)
-    {
-        ghost.PlaybackClock += dt;
-        AdvanceVoice(ghost);
+        ghost.PlaybackClock = PlaybackTime;
+        UpdateRigVisibility(ghost);
         UpdateSpeakingLoudness(ghost);
-        
+
         while (ghost.NextEventIndex < ghost.Events.Count &&
                ghost.AbsoluteTimes[ghost.NextEventIndex] <= ghost.PlaybackClock)
         {
             var e = ghost.Events[ghost.NextEventIndex];
-            var eventTime = ghost.AbsoluteTimes[ghost.NextEventIndex];
-    
-            switch (e.Type)
-            {
-                case ReplayEventType.Frame:
-                    ghost.CurrentFrame = (FrameData)e.Payload;
-                    ghost.CurrentFrameTime = eventTime;
-                    ghost.FramesSeen++;
-                    break;
-                case ReplayEventType.ColorChanged:
-                    ghost.Rig.bodyRenderer.UpdateColor(
-                        BitPackUtils.UnpackColorFromNetwork(((ColorChangedData)e.Payload).Color));
-                    break;
-                case ReplayEventType.MaterialChanged:
-                    var matIndex = ((MaterialChangedData)e.Payload).MaterialIndex;
-                    Logging.ModLog.Debug($"[mat] play actor={ghost.ActorNumber} apply material={matIndex} at t={eventTime:F3}");
-                    ghost.Rig.ChangeMaterialLocal(matIndex);
-                    break;
-                case ReplayEventType.NameChanged:
-                    ghost.Rig.SetNameTagText(((NameChangedData)e.Payload).Name);
-                    break;
-                case ReplayEventType.SoundEffect:
-                    var sound = (SoundEffectData)e.Payload;
-                    ghost.Rig.PlayTagSoundLocal(sound.SoundIndex, sound.Volume, sound.StopCurrentAudio);
-                    break;
-                case ReplayEventType.HandTap:
-                    var handTap = (HandTapData)e.Payload;
-                    Logging.ModLog.Debug(
-                        $"[tap] play actor={ghost.ActorNumber} sound={handTap.SoundIndex} vol={handTap.Volume:F2} left={handTap.IsLeftHand} at t={eventTime:F3}");
-                    ghost.Rig.PlayHandTapLocal(handTap.SoundIndex, handTap.IsLeftHand, handTap.Volume);
-                    break;
-                case ReplayEventType.CosmeticsChanged:
-                    ApplyCosmetics(ghost, ((CosmeticsData)e.Payload).Cosmetics, eventTime);
-                    break;
-                case ReplayEventType.PlayerLeft:
-                    ghost.HasLeft = true;
-                    break;
-            }
-    
+            ApplyEvent(ghost, e, ghost.AbsoluteTimes[ghost.NextEventIndex]);
             ghost.NextEventIndex++;
         }
-    
+
+        ApplyInterpolation(ghost);
+    }
+
+    private void RecomputeGhost(GhostPlayer ghost, bool replayAudioEvents = true)
+    {
+        ghost.PlaybackClock = PlaybackTime;
+        ghost.NextEventIndex = 0;
+        ghost.CurrentFrame = default;
+        ghost.CurrentFrameTime = 0;
+        ghost.FramesSeen = 0;
+        ghost.HasLeft = false;
+
+        while (ghost.NextEventIndex < ghost.Events.Count &&
+               ghost.AbsoluteTimes[ghost.NextEventIndex] <= ghost.PlaybackClock)
+        {
+            var e = ghost.Events[ghost.NextEventIndex];
+            ApplyEvent(ghost, e, ghost.AbsoluteTimes[ghost.NextEventIndex], replayAudioEvents);
+            ghost.NextEventIndex++;
+        }
+
+        UpdateRigVisibility(ghost);
+        SeekVoice(ghost);
+        ApplyInterpolation(ghost);
+        UpdateSpeakingLoudness(ghost);
+    }
+
+    private void UpdateRigVisibility(GhostPlayer ghost)
+    {
+        if (!ghost.Rig)
+            return;
+
+        var active = !ghost.HasLeft;
+        if (active && ghost.Events.Count > 0 && ghost.PlaybackClock < ghost.AbsoluteTimes[0])
+            active = false;
+
+        if (ghost.Rig.gameObject.activeSelf != active)
+            ghost.Rig.gameObject.SetActive(active);
+    }
+
+    private static void ApplyEvent(GhostPlayer ghost, ReplayEvent e, double eventTime, bool replayAudioEvents = true)
+    {
+        switch (e.Type)
+        {
+            case ReplayEventType.Frame:
+                ghost.CurrentFrame = (FrameData)e.Payload;
+                ghost.CurrentFrameTime = eventTime;
+                ghost.FramesSeen++;
+                break;
+            case ReplayEventType.ColorChanged:
+                ghost.Rig.bodyRenderer.UpdateColor(
+                    BitPackUtils.UnpackColorFromNetwork(((ColorChangedData)e.Payload).Color));
+                break;
+            case ReplayEventType.MaterialChanged:
+                var matIndex = ((MaterialChangedData)e.Payload).MaterialIndex;
+                Logging.ModLog.Debug($"[mat] play actor={ghost.ActorNumber} apply material={matIndex} at t={eventTime:F3}");
+                ghost.Rig.ChangeMaterialLocal(matIndex);
+                break;
+            case ReplayEventType.NameChanged:
+                ghost.Rig.SetNameTagText(((NameChangedData)e.Payload).Name);
+                break;
+            case ReplayEventType.SoundEffect:
+                if (!replayAudioEvents)
+                    break;
+                var sound = (SoundEffectData)e.Payload;
+                ghost.Rig.PlayTagSoundLocal(sound.SoundIndex, sound.Volume, sound.StopCurrentAudio);
+                break;
+            case ReplayEventType.HandTap:
+                if (!replayAudioEvents)
+                    break;
+                var handTap = (HandTapData)e.Payload;
+                Logging.ModLog.Debug(
+                    $"[tap] play actor={ghost.ActorNumber} sound={handTap.SoundIndex} vol={handTap.Volume:F2} left={handTap.IsLeftHand} at t={eventTime:F3}");
+                ghost.Rig.PlayHandTapLocal(handTap.SoundIndex, handTap.IsLeftHand, handTap.Volume);
+                break;
+            case ReplayEventType.CosmeticsChanged:
+                ApplyCosmetics(ghost, ((CosmeticsData)e.Payload).Cosmetics, eventTime);
+                break;
+            case ReplayEventType.PlayerLeft:
+                ghost.HasLeft = true;
+                break;
+        }
+    }
+
+    private static void ApplyInterpolation(GhostPlayer ghost)
+    {
         if (ghost.FramesSeen < 1)
             return;
-        
+
         var peekIndex = ghost.NextEventIndex;
         while (peekIndex < ghost.Events.Count && ghost.Events[peekIndex].Type != ReplayEventType.Frame)
             peekIndex++;
-    
+
         FrameData nextFrame;
         double nextFrameTime;
         if (peekIndex < ghost.Events.Count)
@@ -202,26 +301,26 @@ public class ReplayPlayer : MonoBehaviour
             nextFrame = ghost.CurrentFrame;
             nextFrameTime = ghost.CurrentFrameTime;
         }
-    
+
         if (ghost.FramesSeen < 2 && peekIndex >= ghost.Events.Count)
             return;
-    
+
         var t = nextFrameTime > ghost.CurrentFrameTime
             ? Mathf.Clamp01((float)((ghost.PlaybackClock - ghost.CurrentFrameTime) / (nextFrameTime - ghost.CurrentFrameTime)))
             : 0f;
-    
+
         FrameUnpacker.Unpack(ghost.CurrentFrame,
             out var bodyPosA, out var bodyRotA, out var headRotA,
             out var lHandPosA, out var lHandRotA,
             out var rHandPosA, out var rHandRotA);
-    
+
         FrameUnpacker.Unpack(nextFrame,
             out var bodyPosB, out var bodyRotB, out var headRotB,
             out var lHandPosB, out var lHandRotB,
             out var rHandPosB, out var rHandRotB);
-    
+
         var rig = ghost.Rig;
-        
+
         rig.transform.position = Vector3.Lerp(bodyPosA, bodyPosB, t);
         rig.transform.rotation = Quaternion.Lerp(bodyRotA, bodyRotB, t);
         rig.head.rigTarget.localRotation = Quaternion.Lerp(headRotA, headRotB, t);
@@ -229,7 +328,7 @@ public class ReplayPlayer : MonoBehaviour
         rig.leftHand.rigTarget.localRotation = Quaternion.Lerp(lHandRotA, lHandRotB, t);
         rig.rightHand.rigTarget.localPosition = Vector3.Lerp(rHandPosA, rHandPosB, t);
         rig.rightHand.rigTarget.localRotation = Quaternion.Lerp(rHandRotA, rHandRotB, t);
-    
+
         var handSync = nextFrame.HandSync;
         rig.rightIndex.MapOtherFinger(handSync % 10 / 10f, t);
         rig.rightMiddle.MapOtherFinger(handSync % 100 / 100f, t);
@@ -238,6 +337,7 @@ public class ReplayPlayer : MonoBehaviour
         rig.leftMiddle.MapOtherFinger(handSync % 100000 / 100000f, t);
         rig.leftThumb.MapOtherFinger(handSync % 1000000 / 1000000f, t);
     }
+
 
     private static void ApplyCosmetics(GhostPlayer ghost, string[] cosmetics, double eventTime)
     {
@@ -255,16 +355,38 @@ public class ReplayPlayer : MonoBehaviour
         GhostCosmetics.Apply(ghost.Rig, cosmetics);
     }
 
-    private static void AdvanceVoice(GhostPlayer ghost)
+    private void StartVoices()
     {
-        if (!ghost.VoiceClip || ghost.VoiceClipScheduled)
+        foreach (var ghost in _ghosts)
+        {
+            if (!ghost.VoiceClip || !ghost.VoiceSource)
+                continue;
+
+            ghost.VoiceSource.clip = ghost.VoiceClip;
+            ghost.VoiceSource.time = Mathf.Clamp((float)ghost.PlaybackClock, 0f, ghost.VoiceClip.length);
+
+            if (!ghost.VoiceSource.enabled)
+                ghost.VoiceSource.enabled = true;
+
+            if (ghost.VoiceSource.gameObject.activeInHierarchy)
+                ghost.VoiceSource.Play();
+        }
+    }
+
+    private void StopVoices()
+    {
+        foreach (var ghost in _ghosts)
+            ghost.VoiceSource?.Pause();
+    }
+
+    private static void SeekVoice(GhostPlayer ghost)
+    {
+        if (!ghost.VoiceClip || !ghost.VoiceSource)
             return;
 
-        ghost.VoiceSource.clip = ghost.VoiceClip;
-        ghost.VoiceSource.Play();
-        ghost.VoiceClipScheduled = true;
+        ghost.VoiceSource.time = Mathf.Clamp((float)ghost.PlaybackClock, 0f, ghost.VoiceClip.length);
     }
-    
+
     private static void UpdateSpeakingLoudness(GhostPlayer ghost)
     {
         if (!ghost.Rig)

@@ -6,6 +6,15 @@ namespace ReplayMod.Patches;
 internal static class HandTapPatches
 {
     private const double MaxClockSkewSeconds = 1.0;
+    private const float HandSpeedToVolumeModifier = 0.05f;
+    private const float MinAudibleTapVolume = 0.002f;
+
+    private static float ClampTapVolume(float volume)
+    {
+        var clamped = Mathf.Clamp(volume, 0f, GorillaTagger.Instance.DefaultHandTapVolume);
+        var scaled = clamped * HandSpeedToVolumeModifier;
+        return Mathf.Max(scaled, MinAudibleTapVolume);
+    }
 
     [HarmonyPatch(typeof(VRRigSerializer), "OnHandTapRPCShared")]
     private static class OnHandTapRPCSharedPatch
@@ -21,8 +30,7 @@ internal static class HandTapPatches
             if (Plugin.ReplaySystem is not { IsRecording: true } system || __instance.VRRig?.Creator == null)
                 return;
 
-            var volume = Mathf.Clamp(handTapSpeed, 0f, GorillaTagger.Instance.DefaultHandTapVolume)
-                         * __instance.VRRig.handSpeedToVolumeModifier;
+            var volume = ClampTapVolume(handTapSpeed);
 
             system.RecordHandTap(
                 __instance.VRRig.Creator.ActorNumber,
@@ -37,7 +45,7 @@ internal static class HandTapPatches
     private static class LocalHandTapPatch
     {
         [HarmonyPostfix]
-        private static void Postfix(VRRig __instance, int audioClipIndex, bool isLeftHand, float handTapSpeed)
+        private static void Postfix(VRRig __instance, int audioClipIndex, bool isLeftHand, float handTapVolume)
         {
             if (Plugin.ReplaySystem is not { IsRecording: true } system)
                 return;
@@ -46,8 +54,7 @@ internal static class HandTapPatches
             if (!__instance || __instance != offlineRig)
                 return;
 
-            var volume = Mathf.Clamp(handTapSpeed, 0f, GorillaTagger.Instance.DefaultHandTapVolume)
-                         * __instance.handSpeedToVolumeModifier;
+            var volume = ClampTapVolume(handTapVolume);
 
             system.RecordHandTap(
                 NetworkSystem.Instance.LocalPlayer.ActorNumber,
