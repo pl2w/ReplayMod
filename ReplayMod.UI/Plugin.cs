@@ -223,6 +223,9 @@ public class Plugin : BaseUnityPlugin
         if (!replayPlayer)
             return;
 
+        if (NetworkSystem.Instance != null && NetworkSystem.Instance.InRoom)
+            return;
+
         replayPlayer.Load(path, SpawnGhostRig);
     }
 

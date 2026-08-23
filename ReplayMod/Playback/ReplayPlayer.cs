@@ -21,6 +21,12 @@ public class ReplayPlayer : MonoBehaviour
     {
         Stop();
 
+        if (NetworkSystem.Instance != null && NetworkSystem.Instance.InRoom)
+        {
+            Logging.ModLog.Warn("Cannot play a replay while in a room.");
+            return;
+        }
+
         Logging.ModLog.Info($"Loading replay from {path}");
         var replay = ReplayReader.Load(path);
 
@@ -163,6 +169,22 @@ public class ReplayPlayer : MonoBehaviour
 
         if (IsPlaying)
             StartVoices();
+    }
+
+    private void OnEnable()
+    {
+        RoomSystem.JoinedRoomEvent += OnJoinedRoom;
+    }
+
+    private void OnDisable()
+    {
+        RoomSystem.JoinedRoomEvent -= OnJoinedRoom;
+    }
+
+    private void OnJoinedRoom()
+    {
+        Stop();
+        Logging.ModLog.Info("Stopped replay because a room was joined.");
     }
 
     private void Update()
