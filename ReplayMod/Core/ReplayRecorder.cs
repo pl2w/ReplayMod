@@ -71,7 +71,12 @@ public sealed class ReplayRecorder
         if (items != null)
         {
             for (var i = 0; i < items.Length; i++)
-                current[i] = items[i].displayName;
+            {
+                var name = items[i].itemName;
+                if (string.IsNullOrEmpty(name) || name == "null")
+                    name = "NOTHING";
+                current[i] = name;
+            }
         }
 
         if (_lastRecordedCosmetics != null && SlotsEqual(_lastRecordedCosmetics, current))
@@ -123,7 +128,7 @@ public sealed class ReplayRecorder
                 _rig.leftHand.rigTarget.localPosition, _rig.leftHand.rigTarget.localRotation),
             RightHandLong = BitPackUtils.PackHandPosRotForNetwork(
                 _rig.rightHand.rigTarget.localPosition, _rig.rightHand.rigTarget.localRotation),
-            HandSync = _rig.handSync
+            HandSync = _rig.ReturnHandPosition()
         }, timestamp);
     }
 

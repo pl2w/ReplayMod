@@ -180,16 +180,19 @@ public class ReplaySystem : ITickSystemPost
 
     private void TryBeginRecordingForLocalPlayer()
     {
-        if (_localActor != 0)
-            return;
-
         var netSystem = NetworkSystem.Instance;
         if (!netSystem || !netSystem.InRoom || netSystem.SimTime < MinValidSimTimeSeconds)
             return;
 
         var netPlayer = netSystem.LocalPlayer;
+        if (netPlayer == null)
+            return;
+
+        if (_recorders.ContainsKey(netPlayer.ActorNumber))
+            return;
+
         var rig = GorillaTagger.Instance ? GorillaTagger.Instance.offlineVRRig : null;
-        if (netPlayer == null || !rig)
+        if (!rig)
             return;
 
         _localActor = netPlayer.ActorNumber;

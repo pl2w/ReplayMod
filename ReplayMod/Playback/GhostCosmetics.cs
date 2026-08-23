@@ -11,45 +11,54 @@ internal static class GhostCosmetics
     private const string NothingSlot = "NOTHING";
     private const int SlotCount = 16;
 
-    private static readonly Dictionary<VRRig, string[]> Desired = [];
-    private static readonly HashSet<VRRig> RegisteredRigs = [];
-    private static readonly HashSet<VRRig> AppliedRigs = [];
-    private static readonly HashSet<VRRig> FailedRigs = [];
+    private sealed class RigState
+    {
+        public string[] Desired = [];
+        public bool Registered;
+        public bool Applied;
+        public bool Failed;
+    }
+
+    private static readonly Dictionary<VRRig, RigState> States = [];
     private static bool _loggedDeferred;
 
     public static void Apply(VRRig rig, string[] slotNames)
     {
-        if (!rig || slotNames == null)
+        if (!rig)
             return;
 
-        Desired[rig] = NormalizeSlots(slotNames);
-        TryApply(rig);
+        var state = GetOrCreate(rig);
+        state.Desired = NormalizeSlots(slotNames ?? []);
+        state.Applied = false;
+        state.Failed = false;
+
+        TryApply(rig, state);
     }
 
     public static void Tick()
     {
-        if (Desired.Count == 0)
+        if (States.Count == 0)
             return;
 
         List<VRRig> stale = null;
-        foreach (var rig in Desired.Keys)
+        foreach (var (rig, state) in States)
         {
             if (!rig)
             {
                 stale ??= [];
                 stale.Add(rig);
+                continue;
             }
-            else if (!AppliedRigs.Contains(rig))
-            {
-                TryApply(rig);
-            }
+
+            if (!state.Applied && !state.Failed)
+                TryApply(rig, state);
         }
 
         if (stale == null)
             return;
 
         foreach (var rig in stale)
-            Forget(rig);
+            States.Remove(rig);
     }
 
     public static void ClearVisualState(VRRig rig)
@@ -63,14 +72,7 @@ internal static class GhostCosmetics
 
         try
         {
-            rig.prevSet?.ClearSet(controller.nullItem);
-            rig.mergedSet?.ClearSet(controller.nullItem);
-
-            var slots = new string[SlotCount];
-            for (var i = 0; i < SlotCount; i++)
-                slots[i] = NothingSlot;
-
-            rig.cosmeticSet = new CosmeticsController.CosmeticSet(slots, controller);
+            rig.cosmeticSet = EmptySet(controller);
             rig.SetCosmeticsActive(playfx: false);
         }
         catch (Exception e)
@@ -81,45 +83,40 @@ internal static class GhostCosmetics
 
     public static void Reset()
     {
-        Desired.Clear();
-        RegisteredRigs.Clear();
-        AppliedRigs.Clear();
-        FailedRigs.Clear();
+        States.Clear();
         _loggedDeferred = false;
     }
 
-    private static void Forget(VRRig rig)
+    private static RigState GetOrCreate(VRRig rig)
     {
-        Desired.Remove(rig);
-        RegisteredRigs.Remove(rig);
-        AppliedRigs.Remove(rig);
-        FailedRigs.Remove(rig);
+        if (!States.TryGetValue(rig, out var state))
+        {
+            state = new RigState();
+            States[rig] = state;
+        }
+
+        return state;
     }
 
-    private static void TryApply(VRRig rig)
+    private static void TryApply(VRRig rig, RigState state)
     {
-        if (!Desired.TryGetValue(rig, out var slots))
+        if (state.Failed)
             return;
 
         var controller = CosmeticsController.instance;
         if (!controller)
             return;
 
-        if (!EnsureRegistered(rig, controller))
+        if (!state.Registered && !EnsureRegistered(rig, controller, state))
             return;
 
         try
         {
-            if (AppliedRigs.Add(rig))
-            {
-                rig.prevSet?.ClearSet(controller.nullItem);
-                rig.mergedSet?.ClearSet(controller.nullItem);
-            }
+            var targetItems = new CosmeticsController.CosmeticItem[SlotCount];
+            for (var i = 0; i < SlotCount; i++)
+                targetItems[i] = controller.GetItemFromDict(state.Desired[i]);
 
-            var worn = new string[slots.Length];
-            Array.Copy(slots, worn, slots.Length);
-
-            var targetSet = new CosmeticsController.CosmeticSet(worn, controller);
+            var targetSet = new CosmeticsController.CosmeticSet { items = targetItems };
             foreach (var item in targetSet.items)
             {
                 if (!item.isNullItem && !string.IsNullOrEmpty(item.itemName))
@@ -128,10 +125,15 @@ internal static class GhostCosmetics
 
             rig.cosmeticSet = targetSet;
             rig.SetCosmeticsActive(playfx: false);
+
+            if (rig.myBodyDockPositions)
+                rig.myBodyDockPositions.RefreshTransferrableItems();
+
+            state.Applied = true;
         }
         catch (Exception e)
         {
-            AppliedRigs.Remove(rig);
+            state.Failed = true;
             ModLog.Warn($"[cos] failed to apply cosmetics to '{rig.name}': {e.Message}");
         }
     }
@@ -144,16 +146,23 @@ internal static class GhostCosmetics
             var name = i < slotNames.Length ? slotNames[i] : null;
             slots[i] = string.IsNullOrEmpty(name) ? NothingSlot : name;
         }
+
         return slots;
     }
 
-    private static bool EnsureRegistered(VRRig rig, CosmeticsController controller)
+    private static CosmeticsController.CosmeticSet EmptySet(CosmeticsController controller)
     {
-        if (RegisteredRigs.Contains(rig))
-            return true;
+        var slots = new string[SlotCount];
+        for (var i = 0; i < SlotCount; i++)
+            slots[i] = NothingSlot;
 
-        if (FailedRigs.Contains(rig))
-            return false;
+        return new CosmeticsController.CosmeticSet(slots, controller);
+    }
+
+    private static bool EnsureRegistered(VRRig rig, CosmeticsController controller, RigState state)
+    {
+        if (state.Registered)
+            return true;
 
         if (!CosmeticsV2Spawner_Dirty.isPrepared ||
             CosmeticsV2Spawner_Dirty._g_loadOpInfosForRigAndCosmeticIDDicts == null)
@@ -163,6 +172,7 @@ internal static class GhostCosmetics
                 ModLog.Info("[cos] cosmetics spawner still initializing; deferring ghost registration");
                 _loggedDeferred = true;
             }
+
             return false;
         }
 
@@ -171,19 +181,20 @@ internal static class GhostCosmetics
             if (!(controller.v2_allCosmeticsInfoAssetRef.Asset is AllCosmeticsArraySO allCosmetics))
             {
                 ModLog.Warn("[cos] cosmetics catalog not ready; ghost cosmetics unavailable");
+                state.Failed = true;
                 return false;
             }
 
             if (CosmeticsV2Spawner_Dirty._gVRRigDatasIndexByRig.ContainsKey(rig))
             {
-                RegisteredRigs.Add(rig);
+                state.Registered = true;
                 return true;
             }
 
             if (!GTHardCodedBones.TryGetBoneXforms(rig, out var boneXforms, out var boneError))
             {
                 ModLog.Warn($"[cos] cannot resolve bones for '{rig.name}': {boneError}");
-                FailedRigs.Add(rig);
+                state.Failed = true;
                 return false;
             }
 
@@ -212,13 +223,13 @@ internal static class GhostCosmetics
                     AddParts(info.functionalParts, info, rigIndex, ref counter);
             }
 
-            RegisteredRigs.Add(rig);
+            state.Registered = true;
             ModLog.Info($"[cos] registered '{rig.name}' as cosmetics rig index {rigIndex} ({counter} load ops)");
             return true;
         }
         catch (Exception e)
         {
-            FailedRigs.Add(rig);
+            state.Failed = true;
             ModLog.Error($"[cos] failed to register ghost rig for cosmetics: {e}");
             return false;
         }

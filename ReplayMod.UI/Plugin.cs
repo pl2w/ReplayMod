@@ -92,9 +92,10 @@ public class Plugin : BaseUnityPlugin
 
         if (duration > 0f)
         {
+            GUI.changed = false;
             var slider = GUI.HorizontalSlider(new Rect(100, y2, 150, 18), time, 0f, duration);
 
-            if (!Mathf.Approximately(slider, time))
+            if (GUI.changed)
             {
                 if (!_scrubbing)
                 {
@@ -103,7 +104,7 @@ public class Plugin : BaseUnityPlugin
                 }
                 replayPlayer?.Seek(slider);
             }
-            else
+            else if (_scrubbing)
             {
                 _scrubbing = false;
             }
@@ -143,6 +144,8 @@ public class Plugin : BaseUnityPlugin
                 $"Room: {replaySystem.RecordingRoomName}");
             GUI.Label(new Rect(18, y6 + 38, 290, 20),
                 $"Time: {FmtTime(elapsed)}   Players: {replaySystem.RecordedActorCount}");
+            GUI.Label(new Rect(18, y6 + 56, 290, 20),
+                $"Events: {replaySystem.TotalPoseEvents}   Voice: {replaySystem.TotalVoiceChunks}");
         }
     }
 

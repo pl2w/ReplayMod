@@ -210,13 +210,20 @@ public class ReplayPlayer : MonoBehaviour
         ghost.FramesSeen = 0;
         ghost.HasLeft = false;
 
+        string[] lastCosmetics = null;
         while (ghost.NextEventIndex < ghost.Events.Count &&
                ghost.AbsoluteTimes[ghost.NextEventIndex] <= ghost.PlaybackClock)
         {
             var e = ghost.Events[ghost.NextEventIndex];
-            ApplyEvent(ghost, e, ghost.AbsoluteTimes[ghost.NextEventIndex], replayAudioEvents);
+            if (e.Type == ReplayEventType.CosmeticsChanged)
+                lastCosmetics = ((CosmeticsData)e.Payload).Cosmetics;
+            else
+                ApplyEvent(ghost, e, ghost.AbsoluteTimes[ghost.NextEventIndex], replayAudioEvents);
             ghost.NextEventIndex++;
         }
+
+        if (lastCosmetics != null)
+            ApplyCosmetics(ghost, lastCosmetics, ghost.PlaybackClock);
 
         UpdateRigVisibility(ghost);
         SeekVoice(ghost);
